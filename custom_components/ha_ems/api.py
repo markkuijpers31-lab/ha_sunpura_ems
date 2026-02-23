@@ -539,9 +539,7 @@ class ApiClient:
         return resp
     async def getDictDataByTypeIdNumber(self,type_id):
         url = BASE_URL + "/dict/getDictDataByTypeId/" + str(type_id) 
-        print(url)
         resp = await self.get({}, url)
-        print(resp)
         return resp
     async def saveAiPrice(self, data):
         url = BASE_URL + "/aiPrice/saveAiPrice"

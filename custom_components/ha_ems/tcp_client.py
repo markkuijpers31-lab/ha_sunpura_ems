@@ -192,7 +192,6 @@ class SunpuraDeviceClient:
                 }
                 # Send request
                 request_str = json.dumps(request) + "\n"
-                print(request_str)
                 writer.write(request_str.encode("utf-8"))
                 await writer.drain()
                 _LOGGER.debug(f"Sent request: {request_str.strip()}")

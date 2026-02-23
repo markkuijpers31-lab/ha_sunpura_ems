@@ -1,0 +1,97 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sunpura EMS — Anmelden",
+        "description": "Gib deine Sunpura-Cloud-Kontodaten ein.",
+        "data": {
+          "username": "Benutzername",
+          "password": "Passwort"
+        }
+      },
+      "select_family": {
+        "title": "Sunpura EMS — Anlage auswählen",
+        "description": "Wähle die zu überwachende Anlage aus.",
+        "data": {
+          "family": "Anlage"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Diese Sunpura EMS-Anlage ist bereits konfiguriert."
+    },
+    "error": {
+      "cannot_connect": "Verbindung zur Sunpura-Cloud nicht möglich.",
+      "invalid_auth": "Ungültiger Benutzername oder falsches Passwort."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "solar_power":                   { "name": "Solarleistung",                    "description": "Aktuelle Gesamtleistung aller angeschlossenen Solarmodule." },
+      "pv1_power":                     { "name": "PV1-Leistung",                     "description": "Leistungsabgabe des PV-Strings 1." },
+      "pv2_power":                     { "name": "PV2-Leistung",                     "description": "Leistungsabgabe des PV-Strings 2." },
+      "grid_power":                    { "name": "Netzleistung",                     "description": "Aktuelle Leistung am Stromnetz. Positiv = Bezug, negativ = Einspeisung." },
+      "battery_power":                 { "name": "Batterieleistung",                 "description": "Aktuelle Lade- (positiv) oder Entladeleistung (negativ) der Batterie." },
+      "ac_charge_power":               { "name": "AC-Ladeleistung",                  "description": "Leistung, mit der die Batterie über den AC-Anschluss aus dem Netz geladen wird." },
+      "home_power":                    { "name": "Hausverbrauch",                    "description": "Gesamte vom Haushalt verbrauchte Leistung." },
+      "load_power":                    { "name": "Lastleistung",                     "description": "Leistung der angeschlossenen Verbraucher (ohne direkten Hausverbrauch)." },
+      "total_load_power":              { "name": "Gesamtlastleistung",               "description": "Kombinierte Gesamtleistung aller angeschlossenen Verbraucher." },
+      "battery_soc":                   { "name": "Batterieladezustand",              "description": "Aktueller Ladezustand (State of Charge) der Batterie in Prozent." },
+      "battery_remaining_energy":      { "name": "Verbleibende Batterieenergie",     "description": "Verbleibende nutzbare Energie in der Batterie in Kilowattstunden." },
+      "solar_today":                   { "name": "Solar heute",                      "description": "Heute insgesamt erzeugter Solarstrom." },
+      "grid_import_today":             { "name": "Netzbezug heute",                  "description": "Heute insgesamt aus dem Netz bezogene Energie." },
+      "grid_export_today":             { "name": "Netzeinspeisung heute",            "description": "Heute insgesamt ins Netz eingespeiste Energie." },
+      "battery_charge_today":          { "name": "Batterieladung heute",             "description": "Heute insgesamt in die Batterie geladene Energie." },
+      "battery_discharge_today":       { "name": "Batterieentladung heute",          "description": "Heute insgesamt aus der Batterie entnommene Energie." },
+      "load_today":                    { "name": "Verbrauch heute",                  "description": "Heute insgesamt von Verbrauchern verbrauchte Energie." },
+      "today_energy":                  { "name": "Energie heute",                   "description": "Heute insgesamt vom System erzeugte Energie." },
+      "month_energy":                  { "name": "Energie diesen Monat",            "description": "Diesen Monat insgesamt vom System erzeugte Energie." },
+      "year_energy":                   { "name": "Energie dieses Jahr",             "description": "Dieses Jahr insgesamt vom System erzeugte Energie." },
+      "total_energy":                  { "name": "Gesamtenergie",                   "description": "Seit der Installation insgesamt vom System erzeugte Energie." },
+      "co2_savings":                   { "name": "CO2-Einsparung",                  "description": "Geschätzte CO₂-Einsparung durch die Nutzung von Solarstrom." },
+      "solar_this_month":              { "name": "Solar diesen Monat",              "description": "Im laufenden Kalendermonat erzeugter Solarstrom." },
+      "grid_import_this_month":        { "name": "Netzbezug diesen Monat",          "description": "Im laufenden Kalendermonat aus dem Netz bezogene Energie." },
+      "grid_export_this_month":        { "name": "Einspeisung diesen Monat",        "description": "Im laufenden Kalendermonat ins Netz eingespeiste Energie." },
+      "battery_charge_this_month":     { "name": "Batterieladung diesen Monat",     "description": "Im laufenden Kalendermonat in die Batterie geladene Energie." },
+      "battery_discharge_this_month":  { "name": "Batterieentladung diesen Monat",  "description": "Im laufenden Kalendermonat aus der Batterie entnommene Energie." },
+      "solar_this_year":               { "name": "Solar dieses Jahr",               "description": "Im laufenden Kalenderjahr erzeugter Solarstrom." },
+      "grid_import_this_year":         { "name": "Netzbezug dieses Jahr",           "description": "Im laufenden Kalenderjahr aus dem Netz bezogene Energie." },
+      "grid_export_this_year":         { "name": "Einspeisung dieses Jahr",         "description": "Im laufenden Kalenderjahr ins Netz eingespeiste Energie." },
+      "battery_charge_this_year":      { "name": "Batterieladung dieses Jahr",      "description": "Im laufenden Kalenderjahr in die Batterie geladene Energie." },
+      "battery_discharge_this_year":   { "name": "Batterieentladung dieses Jahr",   "description": "Im laufenden Kalenderjahr aus der Batterie entnommene Energie." },
+      "solar_all_time":                { "name": "Solar gesamt",                    "description": "Seit der Installation insgesamt erzeugter Solarstrom." },
+      "grid_import_all_time":          { "name": "Netzbezug gesamt",                "description": "Seit der Installation insgesamt aus dem Netz bezogene Energie." },
+      "grid_export_all_time":          { "name": "Einspeisung gesamt",              "description": "Seit der Installation insgesamt ins Netz eingespeiste Energie." },
+      "battery_charge_all_time":       { "name": "Batterieladung gesamt",           "description": "Seit der Installation insgesamt in die Batterie geladene Energie." },
+      "battery_discharge_all_time":    { "name": "Batterieentladung gesamt",        "description": "Seit der Installation insgesamt aus der Batterie entnommene Energie." },
+      "api_discovery_realtime":        { "name": "API-Erkundung (Echtzeit)",        "description": "Diagnosesensor: zeigt alle Rohfelder der homeCountData-API-Antwort als Attribute. Nützlich zur Fehlersuche." },
+      "api_discovery_slow":            { "name": "API-Erkundung (langsame Daten)",  "description": "Diagnosesensor: zeigt alle Rohfelder der langsamen Daten-Endpunkte als Attribute. Nützlich zur Fehlersuche." }
+    },
+    "switch": {
+      "smart_link_mode":  { "name": "Smart-Link-Modus",              "description": "Aktiviert oder deaktiviert den KI Smart-Link-Modus. Bei Aktivierung optimiert das System den Energieverbrauch automatisch basierend auf Solarertrag, Batteriezustand und Netzpreisen." },
+      "basic_discharge":  { "name": "Basisentladung",                "description": "Aktiviert oder deaktiviert die Batterieentladung im Basismodus. In Kombination mit 'Entladeleistung' kann eine feste Entladerate eingestellt werden." },
+      "anti_reflux":      { "name": "Anti-Rückspeisung",             "description": "Verhindert bei Aktivierung die Einspeisung von Energie ins Netz (Nulleinspeisung). Nützlich, wenn Einspeisung nicht erlaubt oder gewünscht ist." },
+      "ct_enable":        { "name": "CT-Klemme aktivieren",          "description": "Aktiviert oder deaktiviert den Stromwandler (CT-Klemme). Die CT-Klemme misst den tatsächlichen Hausverbrauch für genaue Energiebilanzberechnungen." }
+    },
+    "select": {
+      "energy_mode": {
+        "name": "Energiemodus",
+        "description": "Betriebsmodus des Energiemanagementsystems. 'Allgemein': keine Steuerung. 'Smart (KI)': KI-gestützte Optimierung. 'Benutzerdefiniert': manuelle Einstellungen. 'Zeitblöcke': Steuerung nach Zeitplan. 'Manuell': vollständige manuelle Kontrolle.",
+        "state": {
+          "General":     "Allgemein",
+          "Smart":       "Smart (KI)",
+          "Custom":      "Benutzerdefiniert",
+          "Time of Use": "Zeitblöcke",
+          "Manual":      "Manuell"
+        }
+      }
+    },
+    "number": {
+      "max_charge_power":  { "name": "Max. Ladeleistung",       "description": "Maximal zulässige Ladeleistung der Batterie. Reduziere diesen Wert, um die Netzbelastung zu verringern oder das Laderitmo zu begrenzen." },
+      "max_feed_power":    { "name": "Max. Einspeiseleistung",  "description": "Maximal zulässige Einspeiseleistung ins Stromnetz. Setze auf 0 oder verwende Anti-Rückspeisung, um die Einspeisung vollständig zu blockieren." },
+      "discharge_power":   { "name": "Entladeleistung",         "description": "Entladeleistung der Batterie im Basismodus. Nur aktiv, wenn 'Basisentladung' eingeschaltet ist." },
+      "min_discharge_soc": { "name": "Min. Entlade-SOC",        "description": "Minimaler Ladezustand, bei dem die Batterie aufhört zu entladen. Schützt die Batterie vor Tiefentladung." },
+      "max_charge_soc":    { "name": "Max. Lade-SOC",           "description": "Maximaler Ladezustand, bis zu dem die Batterie geladen wird. Werte unter 100 % können die Lebensdauer bei täglichen Ladezyklen verlängern." }
+    }
+  }
+}

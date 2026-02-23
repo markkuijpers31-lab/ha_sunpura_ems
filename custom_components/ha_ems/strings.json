@@ -1,0 +1,97 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sunpura EMS — inloggen",
+        "description": "Voer je Sunpura cloudaccount-gegevens in.",
+        "data": {
+          "username": "Gebruikersnaam",
+          "password": "Wachtwoord"
+        }
+      },
+      "select_family": {
+        "title": "Sunpura EMS — systeem kiezen",
+        "description": "Selecteer de te monitoren installatie.",
+        "data": {
+          "family": "Installatie"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Deze Sunpura EMS-installatie is al geconfigureerd."
+    },
+    "error": {
+      "cannot_connect": "Kan geen verbinding maken met de Sunpura cloud.",
+      "invalid_auth": "Ongeldige gebruikersnaam of wachtwoord."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "solar_power":                   { "name": "Solar Power",                    "description": "Huidige totale vermogensoutput van alle aangesloten zonnepanelen." },
+      "pv1_power":                     { "name": "PV1 Power",                      "description": "Vermogensoutput van PV-string 1." },
+      "pv2_power":                     { "name": "PV2 Power",                      "description": "Vermogensoutput van PV-string 2." },
+      "grid_power":                    { "name": "Grid Power",                     "description": "Huidig vermogen uitgewisseld met het elektriciteitsnet. Positief = import, negatief = export." },
+      "battery_power":                 { "name": "Battery Power",                  "description": "Huidig laad- (positief) of ontlaadvermogen (negatief) van de batterij." },
+      "ac_charge_power":               { "name": "AC Charge Power",                "description": "Vermogen waarmee de batterij via de AC-aansluiting wordt geladen." },
+      "home_power":                    { "name": "Home Power",                     "description": "Totaal vermogen verbruikt door de woning." },
+      "load_power":                    { "name": "Load Power",                     "description": "Vermogen verbruikt door aangesloten belastingen (exclusief thuisverbruik)." },
+      "total_load_power":              { "name": "Total Load Power",               "description": "Gecombineerd totaal vermogen van alle aangesloten belastingen." },
+      "battery_soc":                   { "name": "Battery SOC",                    "description": "Huidige laadtoestand (State of Charge) van de batterij in procenten." },
+      "battery_remaining_energy":      { "name": "Battery Remaining Energy",       "description": "Resterende bruikbare energie in de batterij in kilowattuur." },
+      "solar_today":                   { "name": "Solar Today",                    "description": "Totale zonne-energie opgewekt vandaag." },
+      "grid_import_today":             { "name": "Grid Import Today",              "description": "Totale energie geïmporteerd uit het net vandaag." },
+      "grid_export_today":             { "name": "Grid Export Today",              "description": "Totale energie teruggeleverd aan het net vandaag." },
+      "battery_charge_today":          { "name": "Battery Charge Today",           "description": "Totale energie waarmee de batterij vandaag is geladen." },
+      "battery_discharge_today":       { "name": "Battery Discharge Today",        "description": "Totale energie waarmee de batterij vandaag is ontladen." },
+      "load_today":                    { "name": "Load Today",                     "description": "Totale energie verbruikt door belastingen vandaag." },
+      "today_energy":                  { "name": "Today Energy",                   "description": "Totale energie geproduceerd door het systeem vandaag." },
+      "month_energy":                  { "name": "Month Energy",                   "description": "Totale energie geproduceerd door het systeem deze maand." },
+      "year_energy":                   { "name": "Year Energy",                    "description": "Totale energie geproduceerd door het systeem dit jaar." },
+      "total_energy":                  { "name": "Total Energy",                   "description": "Totale energie geproduceerd door het systeem sinds installatie." },
+      "co2_savings":                   { "name": "CO2 Savings",                    "description": "Geschatte CO₂-uitstootbesparing dankzij het gebruik van zonne-energie." },
+      "solar_this_month":              { "name": "Solar This Month",               "description": "Zonne-energie opgewekt in de huidige kalendermaand." },
+      "grid_import_this_month":        { "name": "Grid Import This Month",         "description": "Energie geïmporteerd uit het net in de huidige kalendermaand." },
+      "grid_export_this_month":        { "name": "Grid Export This Month",         "description": "Energie teruggeleverd aan het net in de huidige kalendermaand." },
+      "battery_charge_this_month":     { "name": "Battery Charge This Month",      "description": "Energie waarmee de batterij is geladen in de huidige kalendermaand." },
+      "battery_discharge_this_month":  { "name": "Battery Discharge This Month",   "description": "Energie waarmee de batterij is ontladen in de huidige kalendermaand." },
+      "solar_this_year":               { "name": "Solar This Year",                "description": "Zonne-energie opgewekt in het huidige kalenderjaar." },
+      "grid_import_this_year":         { "name": "Grid Import This Year",          "description": "Energie geïmporteerd uit het net in het huidige kalenderjaar." },
+      "grid_export_this_year":         { "name": "Grid Export This Year",          "description": "Energie teruggeleverd aan het net in het huidige kalenderjaar." },
+      "battery_charge_this_year":      { "name": "Battery Charge This Year",       "description": "Energie waarmee de batterij is geladen in het huidige kalenderjaar." },
+      "battery_discharge_this_year":   { "name": "Battery Discharge This Year",    "description": "Energie waarmee de batterij is ontladen in het huidige kalenderjaar." },
+      "solar_all_time":                { "name": "Solar All Time",                 "description": "Totale zonne-energie opgewekt sinds installatie." },
+      "grid_import_all_time":          { "name": "Grid Import All Time",           "description": "Totale energie geïmporteerd uit het net sinds installatie." },
+      "grid_export_all_time":          { "name": "Grid Export All Time",           "description": "Totale energie teruggeleverd aan het net sinds installatie." },
+      "battery_charge_all_time":       { "name": "Battery Charge All Time",        "description": "Totale energie waarmee de batterij is geladen sinds installatie." },
+      "battery_discharge_all_time":    { "name": "Battery Discharge All Time",     "description": "Totale energie waarmee de batterij is ontladen sinds installatie." },
+      "api_discovery_realtime":        { "name": "API Discovery (realtime)",       "description": "Diagnostische sensor: toont alle ruwe velden van het homeCountData API-antwoord als attributen. Handig voor foutopsporing." },
+      "api_discovery_slow":            { "name": "API Discovery (slow data)",      "description": "Diagnostische sensor: toont alle ruwe velden van de trage data-endpoints (energie, AI-instellingen) als attributen. Handig voor foutopsporing." }
+    },
+    "switch": {
+      "smart_link_mode":  { "name": "Smart Link Mode",               "description": "Schakelt de AI smart link-modus in of uit. Als actief, optimaliseert het systeem automatisch het energieverbruik op basis van zonneopwekking, batterijstatus en netprijzen." },
+      "basic_discharge":  { "name": "Basic Discharge",               "description": "Schakelt het ontladen van de batterij in de basismodus in of uit. Gebruik dit in combinatie met 'Discharge Power' om een vaste ontlaadsnelheid in te stellen." },
+      "anti_reflux":      { "name": "Anti-Reflux (Zero Feed-in)",    "description": "Wanneer ingeschakeld, voorkomt het systeem dat energie wordt teruggeleverd aan het net. Nuttig als teruglevering niet is toegestaan of gewenst." },
+      "ct_enable":        { "name": "CT Clamp Enable",               "description": "Schakelt de stroommeter (CT-klem) in of uit. De CT-klem meet het werkelijke thuisverbruik voor nauwkeurige energiebalansberekeningen." }
+    },
+    "select": {
+      "energy_mode": {
+        "name": "Energy Mode",
+        "description": "Beheermodus van het energiemanagementsysteem. 'General': geen sturing. 'Smart': AI-gestuurde optimalisatie. 'Custom': handmatige instellingen. 'Time of Use': sturing op tijdblokken. 'Manual': volledig handmatige controle.",
+        "state": {
+          "General":     "Algemeen",
+          "Smart":       "Slim (AI)",
+          "Custom":      "Aangepast",
+          "Time of Use": "Tijdblokken",
+          "Manual":      "Handmatig"
+        }
+      }
+    },
+    "number": {
+      "max_charge_power":  { "name": "Max Charge Power",  "description": "Maximaal toegestaan laadvermogen van de batterij. Verlaag deze waarde om het net minder te belasten of het laadritme te beperken." },
+      "max_feed_power":    { "name": "Max Feed-in Power", "description": "Maximaal toegestaan terugleververmogen aan het elektriciteitsnet. Stel dit in op 0 of gebruik Anti-Reflux om teruglevering te blokkeren." },
+      "discharge_power":   { "name": "Discharge Power",   "description": "Ontlaadvermogen van de batterij in de basismodus. Alleen actief als 'Basic Discharge' is ingeschakeld." },
+      "min_discharge_soc": { "name": "Min Discharge SOC", "description": "Minimale laadtoestand (SOC) waarbij de batterij stopt met ontladen. Stel dit in om de levensduur van de batterij te beschermen." },
+      "max_charge_soc":    { "name": "Max Charge SOC",    "description": "Maximale laadtoestand (SOC) waartoe de batterij wordt geladen. Stel dit in op minder dan 100% om de levensduur te verlengen bij dagelijkse cycli." }
+    }
+  }
+}

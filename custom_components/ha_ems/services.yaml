@@ -1,0 +1,627 @@
+service_switch_plant:
+  name: Switch plant
+  description: Switch to a different plant/power station.
+  fields:
+    plantId:
+      name: Plant ID
+      description: The ID of the plant to switch to.
+      required: true
+      example: "12345"
+      selector:
+        text:
+
+service_refresh_data:
+  name: Refresh data
+  description: Force an immediate refresh of all coordinator data.
+  fields: {}
+
+service_get_energy_data_day:
+  name: Get energy data (day)
+  description: Fetch daily energy statistics.
+  fields:
+    plantId:
+      name: Plant ID
+      description: Plant ID (defaults to current plant).
+      selector:
+        text:
+    sn:
+      name: Serial number
+      description: Device serial number.
+      selector:
+        text:
+
+service_get_energy_data_month:
+  name: Get energy data (month)
+  description: Fetch monthly energy statistics.
+  fields:
+    plantId:
+      name: Plant ID
+      selector:
+        text:
+    sn:
+      name: Serial number
+      selector:
+        text:
+
+service_get_energy_data_year:
+  name: Get energy data (year)
+  description: Fetch yearly energy statistics.
+  fields:
+    plantId:
+      name: Plant ID
+      selector:
+        text:
+    sn:
+      name: Serial number
+      selector:
+        text:
+
+service_get_energy_data_total:
+  name: Get energy data (total)
+  description: Fetch lifetime energy statistics.
+  fields:
+    plantId:
+      name: Plant ID
+      selector:
+        text:
+    sn:
+      name: Serial number
+      selector:
+        text:
+
+service_set_device_name:
+  name: Set device name
+  description: Rename a device.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    deviceName:
+      name: New name
+      required: true
+      selector:
+        text:
+
+service_green_power_plan:
+  name: Get green power plan
+  description: Retrieve the green power plan for a datalogger.
+  fields:
+    datalogSn:
+      name: Datalogger serial number
+      selector:
+        text:
+    plantId:
+      name: Plant ID
+      selector:
+        text:
+
+service_update_green_power_plan:
+  name: Update green power plan
+  description: Update the green power plan settings.
+  fields: {}
+
+service_switch:
+  name: Switch device
+  description: Turn a smart socket or charger on or off.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    value:
+      name: Value
+      description: 1 = on, 0 = off.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 1
+
+service_set_smart_link_mode:
+  name: Set smart link mode
+  description: Enable or disable AI smart link mode.
+  fields:
+    datalogSn:
+      name: Datalogger serial number
+      required: true
+      selector:
+        text:
+    value:
+      name: Value
+      description: 1 = enable, 0 = disable.
+      selector:
+        number:
+          min: 0
+          max: 1
+
+service_set_ai_pre_mode:
+  name: Set AI pre-mode
+  description: Configure AI pre-mode settings.
+  fields: {}
+
+service_get_ai_system_times_with_energy_mode:
+  name: Get AI system times
+  description: Retrieve AI system schedule and energy mode configuration.
+  fields:
+    datalogSn:
+      name: Datalogger serial number
+      selector:
+        text:
+    energyMode:
+      name: Energy mode
+      description: 0 = General, 1 = Smart, 2 = Custom.
+      selector:
+        number:
+          min: 0
+          max: 2
+
+service_set_ai_system_times_with_energy_mode:
+  name: Set AI system times
+  description: Set AI system schedule and energy mode configuration.
+  fields: {}
+
+service_set_device_ms_type:
+  name: Set master/slave type
+  description: Configure master/slave type for a device.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+
+service_set_phase_detection:
+  name: Set phase detection
+  description: Configure phase detection.
+  fields:
+    deviceSn:
+      name: Device serial number
+      selector:
+        text:
+    datalogSn:
+      name: Datalogger serial number
+      selector:
+        text:
+    plantId:
+      name: Plant ID
+      selector:
+        text:
+
+service_check_firmware_version:
+  name: Check firmware version
+  description: Check for a firmware update.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    upgradeType:
+      name: Upgrade type
+      selector:
+        text:
+
+service_get_smart_device_list:
+  name: Get smart device list
+  description: Refresh the list of smart devices.
+  fields: {}
+
+service_set_smart_socket_mode:
+  name: Set smart socket mode
+  description: Configure smart socket operating mode.
+  fields:
+    datalogSn:
+      name: Datalogger serial number
+      selector:
+        text:
+    smartSocketMode:
+      name: Mode
+      selector:
+        text:
+    batBasicDisChargePower:
+      name: Battery discharge power
+      selector:
+        number:
+          min: 0
+          max: 10000
+    basicDisChargeEnable:
+      name: Enable discharge
+      selector:
+        number:
+          min: 0
+          max: 1
+
+service_device_history_info:
+  name: Get device history
+  description: Retrieve device electricity usage history.
+  fields:
+    sn:
+      name: Serial number
+      required: true
+      selector:
+        text:
+    deviceType:
+      name: Device type
+      selector:
+        text:
+
+service_get_price_company_by_plant_id:
+  name: Get price company
+  description: Retrieve electricity price provider for a plant.
+  fields:
+    datalogSn:
+      name: Datalogger serial number
+      selector:
+        text:
+
+service_add_provider:
+  name: Add provider
+  description: Add an electricity price provider.
+  fields: {}
+
+service_get_currency_type:
+  name: Get currency type
+  description: Retrieve available currency types.
+  fields: {}
+
+service_save_ai_price:
+  name: Save AI price
+  description: Save AI electricity price settings.
+  fields: {}
+
+service_get_tibber_token:
+  name: Get Tibber token
+  description: Retrieve the stored Tibber API token.
+  fields: {}
+
+service_add_tibber_token:
+  name: Add Tibber token
+  description: Configure a Tibber API token for dynamic pricing.
+  fields:
+    plantId:
+      name: Plant ID
+      required: true
+      selector:
+        text:
+    systemSn:
+      name: System serial number
+      required: true
+      selector:
+        text:
+    token:
+      name: Token
+      required: true
+      selector:
+        text:
+
+service_set_price_company:
+  name: Set price company
+  description: Set the electricity price provider.
+  fields: {}
+
+service_get_ai_price:
+  name: Get AI price
+  description: Retrieve AI-generated price schedule.
+  fields:
+    priceType:
+      name: Price type
+      description: Default is 3.
+      selector:
+        number:
+          min: 1
+          max: 10
+
+service_generate_ai_price:
+  name: Generate AI price
+  description: Generate an AI price schedule.
+  fields:
+    datalogSn:
+      name: Datalogger serial number
+      selector:
+        text:
+    ecVersion:
+      name: EC version
+      selector:
+        text:
+    intervalType:
+      name: Interval type
+      selector:
+        text:
+
+service_check_meter_by_plant_id:
+  name: Check meter
+  description: Check meter status for the current plant.
+  fields: {}
+
+service_check_zero_feed:
+  name: Check zero feed
+  description: Check and configure zero feed-in settings.
+  fields:
+    datalogSn:
+      name: Datalogger serial number
+      selector:
+        text:
+    plantId:
+      name: Plant ID
+      selector:
+        text:
+    powerMode:
+      name: Power mode
+      selector:
+        text:
+    aiMode:
+      name: AI mode
+      selector:
+        text:
+
+service_set_setting_info:
+  name: Set setting info
+  description: Update device settings.
+  fields: {}
+
+service_set_custom_params:
+  name: Set custom parameters
+  description: Set custom device parameters.
+  fields: {}
+
+service_set_external_device:
+  name: Set external device
+  description: Configure an external device.
+  fields: {}
+
+service_get_dict_data_by_type_id_number:
+  name: Get dictionary data
+  description: Retrieve dictionary data by type ID.
+  fields:
+    typeId:
+      name: Type ID
+      required: true
+      selector:
+        text:
+
+service_local_device_connection:
+  name: Local device connection
+  description: Connect to a device over local TCP.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+
+service_local_get_device_info:
+  name: Local get device info
+  description: Retrieve device parameters over local connection.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+
+service_local_device_switch:
+  name: Local device switch
+  description: Control a device directly over local connection.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    value:
+      name: Value
+      description: 1 = on, 0 = off.
+      selector:
+        number:
+          min: 0
+          max: 1
+
+service_local_get_energy_control_parms:
+  name: Local get energy control parameters
+  description: Retrieve energy control parameters from local device.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    data:
+      name: Data
+      selector:
+        text:
+
+service_local_energy_enable:
+  name: Local energy enable
+  description: Enable or disable energy control on a local device.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    value:
+      name: Value
+      selector:
+        number:
+          min: 0
+          max: 1
+
+service_local_smart_mode_switch:
+  name: Local smart mode switch
+  description: Toggle smart mode on a locally connected device.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+
+service_local_custom_mode_switch:
+  name: Local custom mode switch
+  description: Switch to custom mode on a locally connected device.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    data:
+      name: Data
+      selector:
+        text:
+
+service_local_set_energy_control_parms:
+  name: Local set energy control parameters
+  description: Set energy control parameters on a locally connected device.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    data:
+      name: Data
+      selector:
+        text:
+
+service_local_set_socket_control:
+  name: Local set socket control
+  description: Control a socket on a locally connected device.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    devAddr:
+      name: Device address
+      selector:
+        text:
+    isThirdParty:
+      name: Is third party
+      selector:
+        number:
+          min: 0
+          max: 1
+    data:
+      name: Data
+      selector:
+        text:
+
+service_local_set_hot_tub_control:
+  name: Local set hot tub control
+  description: Control a hot tub device over local connection.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    devAddr:
+      name: Device address
+      selector:
+        text:
+    isThirdParty:
+      name: Is third party
+      selector:
+        number:
+          min: 0
+          max: 1
+    data:
+      name: Data
+      selector:
+        text:
+
+service_local_set_relay_control:
+  name: Local set relay control
+  description: Control a relay on a locally connected device.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    devAddr:
+      name: Device address
+      selector:
+        text:
+    isThirdParty:
+      name: Is third party
+      selector:
+        number:
+          min: 0
+          max: 1
+    data:
+      name: Data
+      selector:
+        text:
+
+service_local_transmit_data:
+  name: Local transmit data
+  description: Send raw data to a locally connected device.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    functionCode:
+      name: Function code
+      selector:
+        text:
+    transmittedData:
+      name: Data
+      selector:
+        text:
+
+service_local_get_ems_register:
+  name: Local get EMS register
+  description: Read an EMS register value from a locally connected device.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    registerAddr:
+      name: Register address
+      required: true
+      selector:
+        text:
+
+service_local_set_ems_register:
+  name: Local set EMS register
+  description: Write an EMS register value to a locally connected device.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    data:
+      name: Data
+      required: true
+      selector:
+        text:
+
+service_get_ai_use_electricity:
+  name: Get AI electricity usage
+  description: Retrieve AI-tracked electricity usage for a device.
+  fields:
+    deviceSn:
+      name: Device serial number
+      required: true
+      selector:
+        text:
+    deviceType:
+      name: Device type
+      selector:
+        text:
+
+service_get_ai_use_strategy:
+  name: Get AI use strategy
+  description: Retrieve AI energy usage strategy settings.
+  fields: {}

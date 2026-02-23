@@ -1,0 +1,97 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sunpura EMS — Connexion",
+        "description": "Entrez vos identifiants de compte cloud Sunpura.",
+        "data": {
+          "username": "Nom d'utilisateur",
+          "password": "Mot de passe"
+        }
+      },
+      "select_family": {
+        "title": "Sunpura EMS — Sélectionner l'installation",
+        "description": "Sélectionnez l'installation à surveiller.",
+        "data": {
+          "family": "Installation"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Cette installation Sunpura EMS est déjà configurée."
+    },
+    "error": {
+      "cannot_connect": "Impossible de se connecter au cloud Sunpura.",
+      "invalid_auth": "Nom d'utilisateur ou mot de passe incorrect."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "solar_power":                   { "name": "Puissance solaire",                "description": "Puissance totale actuelle de tous les panneaux solaires connectés." },
+      "pv1_power":                     { "name": "Puissance PV1",                    "description": "Puissance produite par le string PV1." },
+      "pv2_power":                     { "name": "Puissance PV2",                    "description": "Puissance produite par le string PV2." },
+      "grid_power":                    { "name": "Puissance réseau",                 "description": "Puissance échangée avec le réseau électrique. Positif = soutirage, négatif = injection." },
+      "battery_power":                 { "name": "Puissance batterie",               "description": "Puissance de charge (positive) ou de décharge (négative) actuelle de la batterie." },
+      "ac_charge_power":               { "name": "Puissance de charge AC",           "description": "Puissance utilisée pour charger la batterie depuis le réseau AC." },
+      "home_power":                    { "name": "Consommation domicile",            "description": "Puissance totale consommée par le logement." },
+      "load_power":                    { "name": "Puissance de charge",              "description": "Puissance consommée par les équipements connectés (hors consommation directe)." },
+      "total_load_power":              { "name": "Puissance totale de charge",       "description": "Puissance combinée de tous les équipements connectés." },
+      "battery_soc":                   { "name": "SOC batterie",                     "description": "État de charge actuel de la batterie en pourcentage." },
+      "battery_remaining_energy":      { "name": "Énergie restante batterie",        "description": "Énergie utilisable restante dans la batterie en kilowattheures." },
+      "solar_today":                   { "name": "Solaire aujourd'hui",              "description": "Énergie solaire totale produite aujourd'hui." },
+      "grid_import_today":             { "name": "Soutirage réseau aujourd'hui",     "description": "Énergie totale soutirée du réseau aujourd'hui." },
+      "grid_export_today":             { "name": "Injection réseau aujourd'hui",     "description": "Énergie totale injectée dans le réseau aujourd'hui." },
+      "battery_charge_today":          { "name": "Charge batterie aujourd'hui",      "description": "Énergie totale chargée dans la batterie aujourd'hui." },
+      "battery_discharge_today":       { "name": "Décharge batterie aujourd'hui",    "description": "Énergie totale déchargée de la batterie aujourd'hui." },
+      "load_today":                    { "name": "Consommation aujourd'hui",         "description": "Énergie totale consommée par les équipements aujourd'hui." },
+      "today_energy":                  { "name": "Énergie aujourd'hui",              "description": "Énergie totale produite par le système aujourd'hui." },
+      "month_energy":                  { "name": "Énergie ce mois",                  "description": "Énergie totale produite par le système ce mois-ci." },
+      "year_energy":                   { "name": "Énergie cette année",              "description": "Énergie totale produite par le système cette année." },
+      "total_energy":                  { "name": "Énergie totale",                   "description": "Énergie totale produite par le système depuis l'installation." },
+      "co2_savings":                   { "name": "Économies CO2",                    "description": "Réduction estimée des émissions de CO₂ grâce à l'utilisation de l'énergie solaire." },
+      "solar_this_month":              { "name": "Solaire ce mois",                  "description": "Énergie solaire produite durant le mois calendaire en cours." },
+      "grid_import_this_month":        { "name": "Soutirage réseau ce mois",         "description": "Énergie soutirée du réseau durant le mois calendaire en cours." },
+      "grid_export_this_month":        { "name": "Injection réseau ce mois",         "description": "Énergie injectée dans le réseau durant le mois calendaire en cours." },
+      "battery_charge_this_month":     { "name": "Charge batterie ce mois",          "description": "Énergie chargée dans la batterie durant le mois calendaire en cours." },
+      "battery_discharge_this_month":  { "name": "Décharge batterie ce mois",        "description": "Énergie déchargée de la batterie durant le mois calendaire en cours." },
+      "solar_this_year":               { "name": "Solaire cette année",              "description": "Énergie solaire produite durant l'année calendaire en cours." },
+      "grid_import_this_year":         { "name": "Soutirage réseau cette année",     "description": "Énergie soutirée du réseau durant l'année calendaire en cours." },
+      "grid_export_this_year":         { "name": "Injection réseau cette année",     "description": "Énergie injectée dans le réseau durant l'année calendaire en cours." },
+      "battery_charge_this_year":      { "name": "Charge batterie cette année",      "description": "Énergie chargée dans la batterie durant l'année calendaire en cours." },
+      "battery_discharge_this_year":   { "name": "Décharge batterie cette année",    "description": "Énergie déchargée de la batterie durant l'année calendaire en cours." },
+      "solar_all_time":                { "name": "Solaire total",                    "description": "Énergie solaire totale produite depuis l'installation." },
+      "grid_import_all_time":          { "name": "Soutirage réseau total",           "description": "Énergie totale soutirée du réseau depuis l'installation." },
+      "grid_export_all_time":          { "name": "Injection réseau totale",          "description": "Énergie totale injectée dans le réseau depuis l'installation." },
+      "battery_charge_all_time":       { "name": "Charge batterie totale",           "description": "Énergie totale chargée dans la batterie depuis l'installation." },
+      "battery_discharge_all_time":    { "name": "Décharge batterie totale",         "description": "Énergie totale déchargée de la batterie depuis l'installation." },
+      "api_discovery_realtime":        { "name": "Découverte API (temps réel)",      "description": "Capteur de diagnostic : expose tous les champs bruts de la réponse API homeCountData en attributs. Utile pour le dépannage." },
+      "api_discovery_slow":            { "name": "Découverte API (données lentes)",  "description": "Capteur de diagnostic : expose tous les champs bruts des points de terminaison lents en attributs. Utile pour le dépannage." }
+    },
+    "switch": {
+      "smart_link_mode":  { "name": "Mode Smart Link",              "description": "Active ou désactive le mode Smart Link par IA. Lorsqu'il est actif, le système optimise automatiquement la consommation d'énergie en fonction de la production solaire, de l'état de la batterie et des prix du réseau." },
+      "basic_discharge":  { "name": "Décharge de base",             "description": "Active ou désactive la décharge de la batterie en mode de base. À utiliser avec 'Puissance de décharge' pour définir un taux de décharge fixe." },
+      "anti_reflux":      { "name": "Anti-injection (zéro injection)", "description": "Lorsqu'il est activé, empêche le système d'injecter de l'énergie dans le réseau. Utile lorsque l'injection n'est pas autorisée ou souhaitée." },
+      "ct_enable":        { "name": "Activation capteur CT",         "description": "Active ou désactive le capteur de courant à pince (CT). Il mesure la consommation réelle du logement pour des calculs précis du bilan énergétique." }
+    },
+    "select": {
+      "energy_mode": {
+        "name": "Mode énergie",
+        "description": "Mode de fonctionnement du système de gestion d'énergie. 'Général' : aucune gestion active. 'Intelligent (IA)' : optimisation par IA. 'Personnalisé' : réglages manuels. 'Heures creuses' : programmation par plages horaires. 'Manuel' : contrôle entièrement manuel.",
+        "state": {
+          "General":     "Général",
+          "Smart":       "Intelligent (IA)",
+          "Custom":      "Personnalisé",
+          "Time of Use": "Heures creuses",
+          "Manual":      "Manuel"
+        }
+      }
+    },
+    "number": {
+      "max_charge_power":  { "name": "Puissance de charge max.",    "description": "Puissance de charge maximale autorisée pour la batterie. Réduisez cette valeur pour diminuer la sollicitation du réseau ou limiter la vitesse de charge." },
+      "max_feed_power":    { "name": "Puissance d'injection max.",  "description": "Puissance d'injection maximale autorisée dans le réseau électrique. Réglez sur 0 ou utilisez l'anti-injection pour bloquer toute injection." },
+      "discharge_power":   { "name": "Puissance de décharge",       "description": "Puissance de décharge de la batterie en mode de base. Actif uniquement si 'Décharge de base' est activée." },
+      "min_discharge_soc": { "name": "SOC de décharge min.",        "description": "État de charge minimal auquel la décharge de la batterie s'arrête. Protège la durée de vie de la batterie contre les décharges profondes." },
+      "max_charge_soc":    { "name": "SOC de charge max.",          "description": "État de charge maximal jusqu'auquel la batterie est chargée. Une valeur inférieure à 100 % peut prolonger la durée de vie lors de cycles quotidiens." }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "Sunpura EMS",
+  "content_in_root": false,
+  "homeassistant": "2023.9.0",
+  "iot_class": "cloud_polling",
+  "render_readme": true
+}

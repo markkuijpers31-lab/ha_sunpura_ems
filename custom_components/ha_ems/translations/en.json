@@ -1,0 +1,97 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sunpura EMS — Login",
+        "description": "Enter your Sunpura cloud account credentials.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "select_family": {
+        "title": "Sunpura EMS — Select System",
+        "description": "Select the installation to monitor.",
+        "data": {
+          "family": "Installation"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This Sunpura EMS installation is already configured."
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to the Sunpura cloud.",
+      "invalid_auth": "Invalid username or password."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "solar_power":                   { "name": "Solar Power",                    "description": "Current total power output from all connected solar panels." },
+      "pv1_power":                     { "name": "PV1 Power",                      "description": "Power output from PV string 1." },
+      "pv2_power":                     { "name": "PV2 Power",                      "description": "Power output from PV string 2." },
+      "grid_power":                    { "name": "Grid Power",                     "description": "Current power exchanged with the electricity grid. Positive = import, negative = export." },
+      "battery_power":                 { "name": "Battery Power",                  "description": "Current battery charge (positive) or discharge (negative) power." },
+      "ac_charge_power":               { "name": "AC Charge Power",                "description": "Power used to charge the battery from the AC grid connection." },
+      "home_power":                    { "name": "Home Power",                     "description": "Total power consumed by the home." },
+      "load_power":                    { "name": "Load Power",                     "description": "Power consumed by connected loads (excluding direct home consumption)." },
+      "total_load_power":              { "name": "Total Load Power",               "description": "Combined total power of all connected loads." },
+      "battery_soc":                   { "name": "Battery SOC",                    "description": "Current state of charge of the battery as a percentage." },
+      "battery_remaining_energy":      { "name": "Battery Remaining Energy",       "description": "Remaining usable energy in the battery in kilowatt-hours." },
+      "solar_today":                   { "name": "Solar Today",                    "description": "Total solar energy generated today." },
+      "grid_import_today":             { "name": "Grid Import Today",              "description": "Total energy imported from the grid today." },
+      "grid_export_today":             { "name": "Grid Export Today",              "description": "Total energy exported to the grid today." },
+      "battery_charge_today":          { "name": "Battery Charge Today",           "description": "Total energy charged into the battery today." },
+      "battery_discharge_today":       { "name": "Battery Discharge Today",        "description": "Total energy discharged from the battery today." },
+      "load_today":                    { "name": "Load Today",                     "description": "Total energy consumed by loads today." },
+      "today_energy":                  { "name": "Today Energy",                   "description": "Total energy produced by the system today." },
+      "month_energy":                  { "name": "Month Energy",                   "description": "Total energy produced by the system this month." },
+      "year_energy":                   { "name": "Year Energy",                    "description": "Total energy produced by the system this year." },
+      "total_energy":                  { "name": "Total Energy",                   "description": "Total energy produced by the system since installation." },
+      "co2_savings":                   { "name": "CO2 Savings",                    "description": "Estimated CO₂ emissions avoided by using solar energy." },
+      "solar_this_month":              { "name": "Solar This Month",               "description": "Solar energy generated in the current calendar month." },
+      "grid_import_this_month":        { "name": "Grid Import This Month",         "description": "Energy imported from the grid in the current calendar month." },
+      "grid_export_this_month":        { "name": "Grid Export This Month",         "description": "Energy exported to the grid in the current calendar month." },
+      "battery_charge_this_month":     { "name": "Battery Charge This Month",      "description": "Energy charged into the battery in the current calendar month." },
+      "battery_discharge_this_month":  { "name": "Battery Discharge This Month",   "description": "Energy discharged from the battery in the current calendar month." },
+      "solar_this_year":               { "name": "Solar This Year",                "description": "Solar energy generated in the current calendar year." },
+      "grid_import_this_year":         { "name": "Grid Import This Year",          "description": "Energy imported from the grid in the current calendar year." },
+      "grid_export_this_year":         { "name": "Grid Export This Year",          "description": "Energy exported to the grid in the current calendar year." },
+      "battery_charge_this_year":      { "name": "Battery Charge This Year",       "description": "Energy charged into the battery in the current calendar year." },
+      "battery_discharge_this_year":   { "name": "Battery Discharge This Year",    "description": "Energy discharged from the battery in the current calendar year." },
+      "solar_all_time":                { "name": "Solar All Time",                 "description": "Total solar energy generated since installation." },
+      "grid_import_all_time":          { "name": "Grid Import All Time",           "description": "Total energy imported from the grid since installation." },
+      "grid_export_all_time":          { "name": "Grid Export All Time",           "description": "Total energy exported to the grid since installation." },
+      "battery_charge_all_time":       { "name": "Battery Charge All Time",        "description": "Total energy charged into the battery since installation." },
+      "battery_discharge_all_time":    { "name": "Battery Discharge All Time",     "description": "Total energy discharged from the battery since installation." },
+      "api_discovery_realtime":        { "name": "API Discovery (realtime)",       "description": "Diagnostic sensor: exposes all raw fields from the homeCountData API response as attributes. Useful for troubleshooting." },
+      "api_discovery_slow":            { "name": "API Discovery (slow data)",      "description": "Diagnostic sensor: exposes all raw fields from the slow data endpoints (energy stats, AI settings) as attributes. Useful for troubleshooting." }
+    },
+    "switch": {
+      "smart_link_mode":  { "name": "Smart Link Mode",               "description": "Enables or disables AI smart link mode. When active, the system automatically optimizes energy usage based on solar generation, battery state, and grid prices." },
+      "basic_discharge":  { "name": "Basic Discharge",               "description": "Enables or disables battery discharge in basic mode. Use together with 'Discharge Power' to set a fixed discharge rate." },
+      "anti_reflux":      { "name": "Anti-Reflux (Zero Feed-in)",    "description": "When enabled, prevents the system from exporting energy to the grid. Useful when grid export is not permitted or desired." },
+      "ct_enable":        { "name": "CT Clamp Enable",               "description": "Enables or disables the CT clamp current sensor. The CT clamp measures actual home consumption for accurate energy balance calculations." }
+    },
+    "select": {
+      "energy_mode": {
+        "name": "Energy Mode",
+        "description": "Operating mode of the energy management system. 'General': no active control. 'Smart': AI-driven optimisation. 'Custom': manual settings. 'Time of Use': time-block scheduling. 'Manual': full manual control.",
+        "state": {
+          "General":     "General",
+          "Smart":       "Smart (AI)",
+          "Custom":      "Custom",
+          "Time of Use": "Time of Use",
+          "Manual":      "Manual"
+        }
+      }
+    },
+    "number": {
+      "max_charge_power":  { "name": "Max Charge Power",  "description": "Maximum allowed battery charging power. Lower this value to reduce grid load or limit the charging rate." },
+      "max_feed_power":    { "name": "Max Feed-in Power", "description": "Maximum allowed power exported to the electricity grid. Set to 0 or use Anti-Reflux to block all export." },
+      "discharge_power":   { "name": "Discharge Power",   "description": "Battery discharge power in basic mode. Only active when 'Basic Discharge' is enabled." },
+      "min_discharge_soc": { "name": "Min Discharge SOC", "description": "Minimum battery state of charge at which discharging stops. Set this to protect battery longevity." },
+      "max_charge_soc":    { "name": "Max Charge SOC",    "description": "Maximum state of charge to which the battery is charged. Setting below 100% can extend battery lifespan during daily cycling." }
+    }
+  }
+}

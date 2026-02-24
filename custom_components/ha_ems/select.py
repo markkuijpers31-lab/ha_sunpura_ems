@@ -85,6 +85,22 @@ class EmsEnergyModeSelect(CoordinatorEntity, SelectEntity):
         self._optimistic_option = option
         self.async_write_ha_state()
 
+    def _get_ai_obj(self) -> dict | None:
+        if self.coordinator.data is None:
+            return None
+        ai = self.coordinator.data.get("ai_settings") or {}
+        obj = ai.get("obj") if isinstance(ai, dict) else None
+        return obj if isinstance(obj, dict) else None
+
     def _handle_coordinator_update(self) -> None:
-        self._optimistic_option = None
+        if self._optimistic_option is not None:
+            obj = self._get_ai_obj()
+            if obj is not None:
+                current_mode = ENERGY_MODE_OPTIONS.get(str(obj.get("energyMode", "")))
+                if current_mode == self._optimistic_option:
+                    self._optimistic_option = None
+                else:
+                    # API still returns old value — hold optimistic state
+                    self.async_write_ha_state()
+                    return
         super()._handle_coordinator_update()

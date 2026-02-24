@@ -279,9 +279,6 @@ async def async_setup_entry(
     entities.append(EmsRawDiscoverySensor(realtime_coordinator, hub))
     entities.append(EmsSlowDiscoverySensor(slow_coordinator, hub))
 
-    # Schedule sensor — shows the current controlTime slots as attributes
-    entities.append(EmsScheduleSensor(slow_coordinator, hub))
-
     # Individual real-time sensors
     for description in REALTIME_SENSOR_DESCRIPTIONS:
         entities.append(EmsRealtimeSensor(realtime_coordinator, hub, description))
@@ -289,6 +286,10 @@ async def async_setup_entry(
     # Statistics sensors (month / year / all-time breakdowns)
     for description in SLOW_SENSOR_DESCRIPTIONS:
         entities.append(EmsSlowSensor(slow_coordinator, hub, description))
+
+    # Schedule sensor — shows current controlTime slots from the device
+    if hub.main_control_device_id:
+        entities.append(EmsScheduleSensor(slow_coordinator, hub))
 
     async_add_entities(entities)
 
@@ -452,53 +453,49 @@ class EmsSlowSensor(_EmsBaseSensor):
 
 
 class EmsScheduleSensor(_EmsBaseSensor):
-    """Sensor that surfaces the current controlTime schedule as attributes.
+    """Sensor showing the current controlTime schedule slots from the device.
 
     State: number of active slots (int).
-    Attributes: slot_1 … slot_16 (raw controlTime strings),
-                energy_mode (0=General / 1=Smart / 2=Custom).
-
-    Use Developer Tools → States to inspect the schedule returned by the API
-    and cross-reference with what you set via the Sunpura app (Fase 0).
+    Attributes: slot_1..slot_16 (raw CSV strings), energy_mode.
     """
 
     def __init__(self, coordinator: EmsSlowCoordinator, hub) -> None:
         super().__init__(coordinator)
         self.hub = hub
+        self._attr_translation_key = "battery_schedule"
         self._attr_name = "Battery Schedule"
-        self._attr_unique_id = "ha_ems_schedule"
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._attr_unique_id = "ha_ems_battery_schedule"
         self._attr_icon = "mdi:calendar-clock"
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def _get_obj(self) -> dict | None:
+        if self.coordinator.data is None:
+            return None
+        ai = self.coordinator.data.get("ai_settings") or {}
+        obj = ai.get("obj") if isinstance(ai, dict) else None
+        return obj if isinstance(obj, dict) else None
 
     @property
     def native_value(self) -> int | None:
-        """Return the number of active (enabled) slots."""
-        obj = self._schedule_obj()
+        obj = self._get_obj()
         if obj is None:
             return None
         active = 0
         for i in range(1, 17):
-            slot_str = obj.get(f"controlTime{i}", "")
-            if slot_str and not slot_str.startswith("0,"):
+            slot = obj.get(f"controlTime{i}", "")
+            if slot and str(slot).split(",")[0] == "1":
                 active += 1
         return active
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        obj = self._schedule_obj()
+        obj = self._get_obj()
         if obj is None:
             return {}
-        attrs: dict[str, Any] = {
-            "energy_mode": obj.get("energyMode"),
-        }
+        attrs: dict[str, Any] = {}
         for i in range(1, 17):
-            key = f"controlTime{i}"
-            if key in obj:
-                attrs[f"slot_{i}"] = obj[key]
+            attrs[f"slot_{i}"] = obj.get(f"controlTime{i}", "")
+        attrs["energy_mode"] = obj.get("energyMode")
         return attrs
 
-    def _schedule_obj(self) -> dict | None:
-        if self.coordinator.data is None:
-            return None
-        ai = self.coordinator.data.get("ai_settings") or {}
-        return ai.get("obj") if isinstance(ai, dict) else None
+

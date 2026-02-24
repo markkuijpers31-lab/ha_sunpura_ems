@@ -27,7 +27,7 @@ _LOGGER = logging.getLogger(__name__)
 # Fields 7-9: always 0
 # Field 10 (maxSOC): upper SOC limit for this slot (0-100 %)
 # Field 11 (minSOC): lower SOC limit for this slot  (0-100 %)
-_EMPTY_SLOT = "0,00:00,00:00,0,0,6,0,0,0,100,10"
+_EMPTY_SLOT = "0,00:00,00:00,0,0,0,0,0,0,100,10"
 
 # Server-side read-only fields that must NOT be included in the SET payload.
 # Including them causes the API to silently reject or misprocess the request.
@@ -238,10 +238,21 @@ class SunpuraHub:
         self.data["ai_system_times_with_energy_mode"] = resp
         return resp or {}
 
-    async def set_ai_system_times_with_energy_mode(self, data) -> dict:
-        resp = await self.apiClient.setAiSystemTimesWithEnergyMode(data)
-        # Do NOT overwrite hub.data here — the SET response contains no obj,
-        # which would wipe out the cached GET data and break all reads.
+    async def set_ai_system_times_with_energy_mode(self, data: dict) -> dict:
+        # Strip server-side read-only fields before sending to avoid silent rejection
+        clean = {k: v for k, v in data.items()
+                 if k not in _READONLY_FIELDS and v is not None}
+        resp = await self.apiClient.setAiSystemTimesWithEnergyMode(clean)
+        if (resp or {}).get("result") == 0:
+            # Update cache immediately so push_schedule reads fresh values
+            cached = self.data.get("ai_system_times_with_energy_mode") or {}
+            obj = (cached.get("obj") if isinstance(cached, dict) else None) or {}
+            for k, v in clean.items():
+                obj[k] = v
+            if isinstance(cached, dict):
+                cached["obj"] = obj
+            else:
+                self.data["ai_system_times_with_energy_mode"] = {"obj": obj}
         return resp or {}
 
     async def push_schedule(self, slots: list[dict], dry_run: bool = False) -> dict:

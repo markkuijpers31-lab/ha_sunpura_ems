@@ -68,7 +68,7 @@ class ApiClient:
         self.username: str = ""
         self.password: str = ""
         self.token: str = ""
-        self.language: str= "en-US"
+        self.language: str = "en-US"
         self._session = async_get_clientsession(hass)
         
 
@@ -112,10 +112,6 @@ class ApiClient:
         }
         if headers:
             header.update(headers)
-        # form_data = FormData()
-        # if fields:
-        #     for key, value in fields.items():
-        #         form_data.add_field(key, str(value))  # Ensure string values
         try:
             async with self._session.post(url, headers=header, params=params) as resp:
                 if resp.status >= 200 and resp.status < 300:
@@ -193,21 +189,23 @@ class ApiClient:
 
     async def getPlantVos(self):
         """Get plant vos."""
+        url = BASE_URL + "/plant/getPlantVos"
         try:
-            url = BASE_URL + "/plant/getPlantVos"
             resp = await self.get({}, url, {})
             return resp
         except Exception as e:
-            _LOGGER.error("Get plant vos failed: %s, %s", e, resp)
+            _LOGGER.error("Get plant vos failed: %s", e)
+            return {}
 
     async def get_home_control_devices(self, senceId):
+        url = BASE_URL + "/energy/getHomeControlSn/" + str(senceId)
         try:
-            url = BASE_URL + "/energy/getHomeControlSn/" + str(senceId)
             resp = await self.get({}, url)
             _LOGGER.debug(f"get_home_control_devices: {resp}")
             return resp
         except Exception as e:
-            _LOGGER.error("Get home control devices failed: %s, %s", e, resp)
+            _LOGGER.error("Get home control devices failed: %s", e)
+            return {}
 
     async def getHomeCountData(self, scenceId: int, sn: str):
         """Fetch home energy flow data."""
@@ -556,7 +554,7 @@ class ApiClient:
         )
         return resp
 
-    async def addTibberToken(self, plant_id, syentem_sn, token):
+    async def addTibberToken(self, plant_id, system_sn, token):
         """Bind a Tibber token to a plant."""
         url = BASE_URL + "/aiSystem/addTibberToken"
         resp = await self.form_post(
@@ -564,7 +562,7 @@ class ApiClient:
             url,
             params={
                 "plantId": plant_id,
-                "systemSn": syentem_sn,
+                "systemSn": system_sn,
                 "token": token,
             },
         )
@@ -653,18 +651,6 @@ class ApiClient:
         _LOGGER.info(f"Fetching AI usage strategy: {data}")
         url = BASE_URL + "/aiSystem/getAiUseStrategy"
         resp = await self.post({},url,data=data)
-        return resp
-    async def setgetRfDeviceState(self, master_sn,rf_sn):
-        url = BASE_URL + "/device/getRfDeviceState"
-        resp = await self.get(
-            {},
-            url,
-            params={
-                "masterSn":  master_sn,
-                "rfSn": rf_sn
-                
-            }
-        )
         return resp
     async def setExternalDevice(self, data):
         url = BASE_URL + "/device/setExternalDevice"

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from functools import partial
 
 from zeroconf import ServiceBrowser, ServiceStateChange
 from homeassistant.components import zeroconf

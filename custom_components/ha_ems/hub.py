@@ -325,7 +325,9 @@ class SunpuraHub:
             # Fall back to non-third-party mode
             resp = await self.apiClient.setAiMode(datalog_sn, flag)
         elif device.get("isThird") == 1:
-            resp = await self.apiClient.setAiModeWithThird(datalog_sn, flag)
+            resp = await self.apiClient.setAiModeWithThird(
+                device.get("deviceType", ""), datalog_sn, flag
+            )
         else:
             resp = await self.apiClient.setAiMode(datalog_sn, flag)
         await asyncio.sleep(0.03)

@@ -98,6 +98,3 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
         )
 
-    # def async_config_entry_title(self, options: Mapping[str, Any]) -> str:
-    #     """Return config entry title."""
-    #     return "HA-EMS"

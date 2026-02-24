@@ -152,12 +152,6 @@ class SunpuraDeviceClient:
         res = await self.set_control_parms("DeviceManagement", params)
         return res
 
-    async def turn_on_switch(self, attr) -> bool:
-        return await self.send_switch_command(attr, True)
-
-    async def turn_off_switch(self, attr) -> bool:
-        return await self.send_switch_command(attr, False)
-
     async def disconnect(self):
         """Close the TCP connection."""
         await self.tcp_manager.close()
@@ -175,7 +169,7 @@ class SunpuraDeviceClient:
             Device response dict or None on failure
         """
         async with self.lock:
-            if self.is_connected == False:
+            if not self.is_connected:
                 return None
 
             try:

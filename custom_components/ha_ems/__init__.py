@@ -418,7 +418,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Run the battery optimizer and push the resulting schedule."""
         from .optimizer import BatteryOptimizer
         dry_run = bool(call.data.get("dry_run", False))
-        optimizer = BatteryOptimizer(hass)
+        optimizer = BatteryOptimizer(hass, hub)
         slots = await optimizer.optimize()
         if slots:
             result = await hub.push_schedule(slots, dry_run=dry_run)

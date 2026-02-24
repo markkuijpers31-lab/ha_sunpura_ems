@@ -13,36 +13,44 @@ _LOGGER = logging.getLogger(__name__)
 # controlTime slot helpers
 # ---------------------------------------------------------------------------
 
-# Empty/disabled slot string (11 comma-separated fields).
-# Format (inferred from similar Growatt/GoodWe systems, confirm via Fase 0):
-#   enabled, startTime, endTime, workMode, power_pct, f5, f6, f7, f8, f9, maxSOC, minSOC
-# workMode: 0=idle, 1=charge from grid, 2=discharge to grid/home
-_EMPTY_SLOT = "0,00:00,00:00,0,0,0,0,0,0,100,10"
+# Empty/disabled slot string — verified via Fase 0 (24 Feb 2026).
+# Full decoded format (11 comma-separated fields):
+#   enabled, startTime, endTime, powerW, f5, f6, f7, f8, f9, maxSOC, minSOC
+#
+# Field 4 (powerW): power in Watts, signed:
+#   negative → charge from grid  (e.g. -2200 = charge at 2200 W)
+#   positive → discharge/feed    (e.g. +800  = feed at 800 W)
+#   zero     → slot effectively idle (but use enabled=0 for disabled slots)
+#
+# Field 5: always 0 (purpose unknown)
+# Field 6: always 6 (fixed constant written by the Sunpura app; purpose unknown)
+# Fields 7-9: always 0
+# Field 10 (maxSOC): upper SOC limit for this slot (0-100 %)
+# Field 11 (minSOC): lower SOC limit for this slot  (0-100 %)
+_EMPTY_SLOT = "0,00:00,00:00,0,0,6,0,0,0,100,10"
 
 
 def _slot_to_str(slot: dict) -> str:
     """Convert a slot dict to the Sunpura controlTime CSV string.
 
-    Expected slot keys:
-        enabled   (bool, default True)
-        start     (str HH:MM, default "00:00")
-        end       (str HH:MM, default "00:00")
-        work_mode (int, 0=idle / 1=charge / 2=discharge, default 0)
-        power_pct (int 0-100, default 100)
-        max_soc   (int 0-100, default 100)
-        min_soc   (int 0-100, default 10)
+    Decoded format (Fase 0, verified 24 Feb 2026):
+        enabled, startTime, endTime, powerW, 0, 6, 0, 0, 0, maxSOC, minSOC
 
-    NOTE: Fields 5-9 (f5-f9) are still unknown — they are set to 0 until
-    decoded via Fase 0 (read discovery sensor after setting a slot via the app).
+    Expected slot keys:
+        enabled  (bool,  default True)
+        start    (str HH:MM, default "00:00")
+        end      (str HH:MM, default "00:00")
+        power_w  (int Watts, negative=charge / positive=discharge, default 0)
+        max_soc  (int 0-100, default 100)
+        min_soc  (int 0-100, default 10)
     """
     enabled = 1 if slot.get("enabled", True) else 0
     start = slot.get("start", "00:00")
     end = slot.get("end", "00:00")
-    work_mode = int(slot.get("work_mode", 0))
-    power_pct = int(slot.get("power_pct", 100))
+    power_w = int(slot.get("power_w", 0))
     max_soc = int(slot.get("max_soc", 100))
     min_soc = int(slot.get("min_soc", 10))
-    return f"{enabled},{start},{end},{work_mode},{power_pct},0,0,0,0,0,{max_soc},{min_soc}"
+    return f"{enabled},{start},{end},{power_w},0,6,0,0,0,{max_soc},{min_soc}"
 
 
 class SunpuraHub:

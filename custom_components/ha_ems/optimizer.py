@@ -4,14 +4,16 @@ Reads Tibber/Nordpool prices, forecast.solar prognoses, historical consumption
 from MariaDB, and Cupra EV state from HA — then generates an optimal list of
 up to 16 controlTime slot dicts for push_schedule().
 
-Work modes:
-    0 = idle  (battery does not charge or discharge beyond self-consumption)
-    1 = charge from grid
-    2 = discharge to grid/home
+controlTime format (decoded Fase 0, 24 Feb 2026):
+    enabled, startTime, endTime, powerW, 0, 6, 0, 0, 0, maxSOC, minSOC
+
+    powerW: signed integer in Watts
+        negative → charge from grid  (e.g. -2400)
+        positive → discharge/feed    (e.g. +2400)
 
 Usage (from a service handler):
     from .optimizer import BatteryOptimizer
-    optimizer = BatteryOptimizer(hass)
+    optimizer = BatteryOptimizer(hass, hub)
     slots = await optimizer.optimize()
 """
 
@@ -26,10 +28,9 @@ from homeassistant.util.dt import now as dt_now
 
 _LOGGER = logging.getLogger(__name__)
 
-# Work mode constants (mirrors hub._slot_to_str expectations)
-MODE_IDLE = 0
-MODE_CHARGE = 1
-MODE_DISCHARGE = 2
+# Sunpura S2400 defaults (used when API values are unavailable)
+_DEFAULT_MAX_CHARGE_W = 2400
+_DEFAULT_MAX_DISCHARGE_W = 2400
 
 
 # ---------------------------------------------------------------------------
@@ -73,8 +74,9 @@ class BatteryOptimizer:
         Uit              — return empty list (no schedule pushed).
     """
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    def __init__(self, hass: HomeAssistant, hub=None) -> None:
         self.hass = hass
+        self.hub = hub
 
     # ------------------------------------------------------------------
     # HA state helpers
@@ -103,6 +105,34 @@ class BatteryOptimizer:
         if state is None:
             return default
         return state.attributes.get(attr, default)
+
+    # ------------------------------------------------------------------
+    # Read max charge/discharge power from hub AI settings
+    # ------------------------------------------------------------------
+
+    def _max_charge_w(self) -> int:
+        """Return maxChargePower in Watts (from hub AI settings or default)."""
+        if self.hub is not None:
+            obj = (self.hub.data.get("ai_system_times_with_energy_mode") or {}).get("obj") or {}
+            val = obj.get("maxChargePower")
+            if val is not None:
+                try:
+                    return int(val)
+                except (TypeError, ValueError):
+                    pass
+        return _DEFAULT_MAX_CHARGE_W
+
+    def _max_discharge_w(self) -> int:
+        """Return maxFeedPower in Watts (from hub AI settings or default)."""
+        if self.hub is not None:
+            obj = (self.hub.data.get("ai_system_times_with_energy_mode") or {}).get("obj") or {}
+            val = obj.get("maxFeedPower")
+            if val is not None:
+                try:
+                    return int(val)
+                except (TypeError, ValueError):
+                    pass
+        return _DEFAULT_MAX_DISCHARGE_W
 
     # ------------------------------------------------------------------
     # Price data
@@ -178,7 +208,6 @@ class BatteryOptimizer:
                 return result
 
         _LOGGER.warning("No Tibber/Nordpool price data found — using flat 0.25 €/kWh")
-        now_hour = dt_now().hour
         return [((now_hour + i) % 24, 0.25) for i in range(24)]
 
     # ------------------------------------------------------------------
@@ -237,7 +266,6 @@ class BatteryOptimizer:
             end_time = dt_now()
             start_time = end_time - timedelta(days=30)
 
-            # Try with home power (W mean → kWh per hour = mean_W / 1000)
             candidate_ids = {
                 "sensor.sunpura_s2400_home_power",
                 "sensor.sunpura_s2400_load_power",
@@ -254,15 +282,12 @@ class BatteryOptimizer:
                 {"mean"},
             )
 
-            # Pick whichever entity returned data
             data_points: list[Any] = []
             for eid in candidate_ids:
                 if stats.get(eid):
                     data_points = stats[eid]
                     _LOGGER.debug(
-                        "Consumption history loaded from %s (%d points)",
-                        eid,
-                        len(data_points),
+                        "Consumption history loaded from %s (%d points)", eid, len(data_points)
                     )
                     break
 
@@ -277,7 +302,7 @@ class BatteryOptimizer:
             for point in data_points:
                 h = point["start"].hour
                 mean_w = point.get("mean") or 0.0
-                hourly_sums[h] += float(mean_w) / 1000.0  # W → kW (= kWh per hour)
+                hourly_sums[h] += float(mean_w) / 1000.0  # W → kW (= kWh/h)
                 hourly_counts[h] += 1
 
             return [
@@ -296,7 +321,11 @@ class BatteryOptimizer:
     async def optimize(self) -> list[dict]:
         """Run optimisation and return a list of up to 16 slot dicts.
 
-        Each slot dict is suitable for hub.push_schedule().
+        Each slot dict is suitable for hub.push_schedule() and contains:
+            enabled (bool), start (HH:MM), end (HH:MM),
+            power_w (int Watts: negative=charge, positive=discharge),
+            max_soc (int %), min_soc (int %).
+
         Returns an empty list when scheduling is disabled.
         """
         # --- User settings ---
@@ -308,7 +337,9 @@ class BatteryOptimizer:
         )
 
         if schedule_active != "on" or optimizer_mode == "Uit":
-            _LOGGER.info("Battery optimizer disabled (mode=%s, active=%s)", optimizer_mode, schedule_active)
+            _LOGGER.info(
+                "Battery optimizer disabled (mode=%s, active=%s)", optimizer_mode, schedule_active
+            )
             return []
 
         reserve_soc = self._state_float("input_number.battery_reserve_soc", 15.0)
@@ -317,6 +348,10 @@ class BatteryOptimizer:
         low_price = self._state_float("input_number.battery_low_price_threshold", 0.08)
 
         current_soc = self._state_float("sensor.sunpura_s2400_battery_soc", 50.0)
+
+        # --- Power limits (from hub API settings) ---
+        max_charge_w = self._max_charge_w()
+        max_discharge_w = self._max_discharge_w()
 
         # --- Cupra EV ---
         ev_charging = False
@@ -327,18 +362,22 @@ class BatteryOptimizer:
         if cupra_power_entities:
             ev_power = self._state_float(cupra_power_entities[0], 0.0)
             ev_charging = ev_power > 0.0
-            _LOGGER.debug("Cupra charging_power=%.0f W (entity=%s)", ev_power, cupra_power_entities[0])
+            _LOGGER.debug(
+                "Cupra charging_power=%.0f W (entity=%s)", ev_power, cupra_power_entities[0]
+            )
 
         effective_reserve = reserve_soc + (ev_reserve_soc if ev_charging else 0.0)
 
         # --- Data ---
-        prices = self._get_tibber_prices()          # [(hour, eur/kWh), ...]
-        solar = self._get_solar_forecast()           # {hour: kWh}
-        consumption = await self._get_hourly_consumption()  # [kWh] per hour
+        prices = self._get_tibber_prices()           # [(hour, eur/kWh), ...]
+        solar = self._get_solar_forecast()            # {hour: kWh}
+        consumption = await self._get_hourly_consumption()   # [kWh] per hour of day
 
         _LOGGER.info(
-            "Optimizer: mode=%s, reserve=%.0f%%, ev=%s, high=%.2f, low=%.2f",
-            optimizer_mode, effective_reserve, ev_charging, high_price, low_price,
+            "Optimizer: mode=%s, reserve=%.0f%%, ev=%s, high=%.2f, low=%.2f, "
+            "max_charge=%dW, max_discharge=%dW",
+            optimizer_mode, effective_reserve, ev_charging,
+            high_price, low_price, max_charge_w, max_discharge_w,
         )
 
         # --- Classify each hour ---
@@ -358,7 +397,6 @@ class BatteryOptimizer:
                 # Discharge only at very high prices and sufficient SOC
                 if price >= high_price and current_soc > effective_reserve + 10:
                     discharge_hours.append(hour)
-                # (charging from grid not desired in self-consumption mode)
 
             else:  # Gebalanceerd (default)
                 if price <= low_price and net_solar < 0.1:
@@ -381,8 +419,7 @@ class BatteryOptimizer:
                 "enabled": True,
                 "start": f"{group[0]:02d}:00",
                 "end": f"{end_hour:02d}:00",
-                "work_mode": MODE_CHARGE,
-                "power_pct": 100,
+                "power_w": -max_charge_w,   # negative = charge from grid
                 "max_soc": 95,
                 "min_soc": int(effective_reserve),
             })
@@ -395,13 +432,12 @@ class BatteryOptimizer:
                 "enabled": True,
                 "start": f"{group[0]:02d}:00",
                 "end": f"{end_hour:02d}:00",
-                "work_mode": MODE_DISCHARGE,
-                "power_pct": 100,
+                "power_w": max_discharge_w,  # positive = discharge/feed
                 "max_soc": 100,
                 "min_soc": int(effective_reserve),
             })
 
-        # --- EV-specific overnight charge (2 slots max) ---
+        # --- EV-specific overnight charge (up to 2 extra slots) ---
         if ev_charging and optimizer_mode != "Uit" and len(slots) < 15:
             night_prices = sorted(
                 [(h, p) for h, p in prices if h >= 22 or h < 6],
@@ -411,10 +447,8 @@ class BatteryOptimizer:
             for group in _group_consecutive_hours(ev_hours):
                 if len(slots) >= 15:
                     break
-                # Only add if not already covered by a charge slot
                 covered = any(
-                    s["work_mode"] == MODE_CHARGE
-                    and _hour_in_slot(group[0], s)
+                    s["power_w"] < 0 and _hour_in_slot(group[0], s)
                     for s in slots
                 )
                 if not covered:
@@ -423,17 +457,18 @@ class BatteryOptimizer:
                         "enabled": True,
                         "start": f"{group[0]:02d}:00",
                         "end": f"{end_hour:02d}:00",
-                        "work_mode": MODE_CHARGE,
-                        "power_pct": 50,
+                        "power_w": -(max_charge_w // 2),  # half power for EV top-up
                         "max_soc": int(min(95, reserve_soc + ev_reserve_soc + 15)),
                         "min_soc": int(reserve_soc),
                     })
 
         _LOGGER.info("Optimizer produced %d slot(s)", len(slots))
         for i, s in enumerate(slots):
+            direction = "charge" if s["power_w"] < 0 else "discharge"
             _LOGGER.debug(
-                "  Slot %d: %s-%s mode=%d soc=%d-%d%%",
-                i + 1, s["start"], s["end"], s["work_mode"], s["min_soc"], s["max_soc"],
+                "  Slot %d: %s-%s %s %dW soc=%d-%d%%",
+                i + 1, s["start"], s["end"], direction,
+                abs(s["power_w"]), s["min_soc"], s["max_soc"],
             )
 
         return slots

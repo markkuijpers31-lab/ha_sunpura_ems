@@ -84,7 +84,6 @@ class EmsEnergyModeSelect(CoordinatorEntity, SelectEntity):
         await self.hub.set_ai_system_times_with_energy_mode(new_obj)
         self._optimistic_option = option
         self.async_write_ha_state()
-        await self.coordinator.async_request_refresh()
 
     def _handle_coordinator_update(self) -> None:
         self._optimistic_option = None

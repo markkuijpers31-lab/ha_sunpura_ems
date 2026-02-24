@@ -147,4 +147,3 @@ class EmsAiNumberEntity(CoordinatorEntity, NumberEntity):
         if "datalogSn" not in new_obj:
             new_obj["datalogSn"] = self.hub.main_control_device_id
         await self.hub.set_ai_system_times_with_energy_mode(new_obj)
-        await self.coordinator.async_request_refresh()

@@ -152,8 +152,7 @@ class EmsAiSettingSwitch(_EmsBaseSwitch):
         new_obj[self._field_key] = value
         if "datalogSn" not in new_obj:
             new_obj["datalogSn"] = self.hub.main_control_device_id
-        await self.hub.set_ai_system_times_with_energy_mode(new_obj)
-        await self.coordinator.async_request_refresh()
+        resp = await self.hub.set_ai_system_times_with_energy_mode(new_obj)
 
     async def async_turn_on(self, **kwargs) -> None:
         self._optimistic_state = True
@@ -166,7 +165,21 @@ class EmsAiSettingSwitch(_EmsBaseSwitch):
         await self._write(0)
 
     def _handle_coordinator_update(self) -> None:
-        self._optimistic_state = None
+        if self._optimistic_state is not None:
+            obj = self._get_ai_obj()
+            if obj is not None:
+                api_val = obj.get(self._field_key)
+                if api_val is not None and bool(api_val) == self._optimistic_state:
+                    # API confirmed our written value — clear optimistic override
+                    self._optimistic_state = None
+                else:
+                    # API still returns old value — hold optimistic state
+                    _LOGGER.debug(
+                        "API returned %s=%s, holding optimistic state=%s",
+                        self._field_key, api_val, self._optimistic_state,
+                    )
+                    self.async_write_ha_state()
+                    return
         super()._handle_coordinator_update()
 
 

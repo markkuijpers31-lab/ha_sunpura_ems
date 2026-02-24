@@ -188,7 +188,8 @@ class SunpuraHub:
 
     async def set_ai_system_times_with_energy_mode(self, data) -> dict:
         resp = await self.apiClient.setAiSystemTimesWithEnergyMode(data)
-        self.data["ai_system_times_with_energy_mode"] = resp
+        # Do NOT overwrite hub.data here — the SET response contains no obj,
+        # which would wipe out the cached GET data and break all reads.
         return resp or {}
 
     async def set_ai_link_mode(self, datalog_sn, flag) -> dict | None:

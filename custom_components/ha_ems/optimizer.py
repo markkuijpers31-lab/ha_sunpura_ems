@@ -1,20 +1,17 @@
 """Battery schedule optimizer for the Sunpura S2400.
 
-Reads Tibber/Nordpool prices, forecast.solar prognoses, historical consumption
-from MariaDB, and Cupra EV state from HA — then generates an optimal list of
-up to 16 controlTime slot dicts for push_schedule().
+Price sources (priority order):
+  1. ENTSO-E (hass-entso-e) — 15-minute resolution, preferred
+  2. Tibber                  — hourly, expanded to 15-min
+  3. Nordpool                — hourly, expanded to 15-min
+  4. Flat 0.25 €/kWh fallback
+
+The optimizer works at 15-minute granularity throughout and produces slot
+dicts with HH:MM start/end times compatible with hub.push_schedule().
 
 controlTime format (decoded Fase 0, 24 Feb 2026):
     enabled, startTime, endTime, powerW, 0, 6, 0, 0, 0, maxSOC, minSOC
-
-    powerW: signed integer in Watts
-        negative → charge from grid  (e.g. -2400)
-        positive → discharge/feed    (e.g. +2400)
-
-Usage (from a service handler):
-    from .optimizer import BatteryOptimizer
-    optimizer = BatteryOptimizer(hass, hub)
-    slots = await optimizer.optimize()
+    powerW: signed Watts (negative = charge from grid, positive = discharge)
 """
 
 from __future__ import annotations
@@ -28,30 +25,53 @@ from homeassistant.util.dt import now as dt_now
 
 _LOGGER = logging.getLogger(__name__)
 
-# Sunpura S2400 defaults (used when API values are unavailable)
 _DEFAULT_MAX_CHARGE_W = 2400
 _DEFAULT_MAX_DISCHARGE_W = 2400
 
 
 # ---------------------------------------------------------------------------
-# Helper: group consecutive hours into runs
+# Quarter-hour helpers
 # ---------------------------------------------------------------------------
 
-def _group_consecutive_hours(hours: list[int]) -> list[list[int]]:
-    """Group a sorted list of hours into consecutive runs.
+def _next_quarter(h: int, m: int) -> tuple[int, int]:
+    """Return the quarter-hour that is 15 minutes after (h, m)."""
+    m += 15
+    if m >= 60:
+        m -= 60
+        h = (h + 1) % 24
+    return h, m
 
-    Example: [0, 1, 2, 5, 6] → [[0, 1, 2], [5, 6]]
-    """
-    if not hours:
+
+def _quarter_to_str(h: int, m: int) -> str:
+    return f"{h:02d}:{m:02d}"
+
+
+def _expand_hourly_to_quarters(
+    prices: list[tuple[int, float]],
+) -> list[tuple[int, int, float]]:
+    """Expand (hour, price) list to (hour, minute, price) at 15-min resolution."""
+    result: list[tuple[int, int, float]] = []
+    for hour, price in prices:
+        for minute in (0, 15, 30, 45):
+            result.append((hour, minute, price))
+    return result
+
+
+def _group_consecutive_quarters(
+    quarters: list[tuple[int, int]],
+) -> list[list[tuple[int, int]]]:
+    """Group a sorted list of (h, m) quarter-hour tuples into consecutive runs."""
+    if not quarters:
         return []
-    groups: list[list[int]] = []
-    current: list[int] = [hours[0]]
-    for h in hours[1:]:
-        if h == current[-1] + 1:
-            current.append(h)
+    groups: list[list[tuple[int, int]]] = []
+    current: list[tuple[int, int]] = [quarters[0]]
+    for q in quarters[1:]:
+        expected = _next_quarter(*current[-1])
+        if q == expected:
+            current.append(q)
         else:
             groups.append(current)
-            current = [h]
+            current = [q]
     groups.append(current)
     return groups
 
@@ -61,17 +81,13 @@ def _group_consecutive_hours(hours: list[int]) -> list[list[int]]:
 # ---------------------------------------------------------------------------
 
 class BatteryOptimizer:
-    """Generates an optimal charge/discharge schedule for the Sunpura S2400.
+    """Generates optimal charge/discharge schedule for the Sunpura S2400.
 
-    The optimizer follows a three-mode strategy controlled by
-    input_select.battery_optimizer_mode:
-
-        Prijs-arbitrage  — charge at cheapest grid hours, discharge at
-                           most expensive hours, maximising financial return.
-        Zelfverbruik     — only discharge at very high price peaks; rely on
-                           solar for self-consumption.
-        Gebalanceerd     — combination: cheap grid + solar, discharge at peaks.
-        Uit              — return empty list (no schedule pushed).
+    Mode (input_select.battery_optimizer_mode):
+        Prijs-arbitrage  — charge at cheapest hours, discharge at most expensive
+        Zelfverbruik     — discharge only at high price peaks; solar first
+        Gebalanceerd     — balanced: cheap grid + discharge at peaks
+        Uit              — disabled, returns empty list
     """
 
     def __init__(self, hass: HomeAssistant, hub=None) -> None:
@@ -83,7 +99,6 @@ class BatteryOptimizer:
     # ------------------------------------------------------------------
 
     def _state_float(self, entity_id: str, default: float = 0.0) -> float:
-        """Read an entity state as float; return default on error."""
         state = self.hass.states.get(entity_id)
         if state is None or state.state in ("unknown", "unavailable", ""):
             return default
@@ -93,156 +108,190 @@ class BatteryOptimizer:
             return default
 
     def _state_str(self, entity_id: str, default: str = "") -> str:
-        """Read an entity state as string."""
         state = self.hass.states.get(entity_id)
-        if state is None:
-            return default
-        return state.state
+        return state.state if state else default
 
-    def _attr_value(self, entity_id: str, attr: str, default: Any = None) -> Any:
-        """Read an entity attribute."""
+    def _attr(self, entity_id: str, attr: str, default: Any = None) -> Any:
         state = self.hass.states.get(entity_id)
-        if state is None:
-            return default
-        return state.attributes.get(attr, default)
+        return state.attributes.get(attr, default) if state else default
 
     # ------------------------------------------------------------------
-    # Read max charge/discharge power from hub AI settings
+    # Hub power limits
     # ------------------------------------------------------------------
 
     def _max_charge_w(self) -> int:
-        """Return maxChargePower in Watts (from hub AI settings or default)."""
         if self.hub is not None:
             obj = (self.hub.data.get("ai_system_times_with_energy_mode") or {}).get("obj") or {}
-            val = obj.get("maxChargePower")
-            if val is not None:
-                try:
-                    return int(val)
-                except (TypeError, ValueError):
-                    pass
+            try:
+                return int(obj["maxChargePower"])
+            except (KeyError, TypeError, ValueError):
+                pass
         return _DEFAULT_MAX_CHARGE_W
 
     def _max_discharge_w(self) -> int:
-        """Return maxFeedPower in Watts (from hub AI settings or default)."""
         if self.hub is not None:
             obj = (self.hub.data.get("ai_system_times_with_energy_mode") or {}).get("obj") or {}
-            val = obj.get("maxFeedPower")
-            if val is not None:
-                try:
-                    return int(val)
-                except (TypeError, ValueError):
-                    pass
+            try:
+                return int(obj["maxFeedPower"])
+            except (KeyError, TypeError, ValueError):
+                pass
         return _DEFAULT_MAX_DISCHARGE_W
 
     # ------------------------------------------------------------------
-    # Price data
+    # Price sources — all return list[tuple[int, int, float]]
+    #   = [(hour, minute, price_eur_kwh), ...] for next ~24 h
     # ------------------------------------------------------------------
 
-    def _get_tibber_prices(self) -> list[tuple[int, float]]:
-        """Return (hour_of_day, price_eur_kwh) for the next 24 h from Tibber.
+    def _get_entsoe_prices(self) -> list[tuple[int, int, float]] | None:
+        """Read 15-minute prices from hass-entso-e integration.
 
-        Tibber sensor attributes:
-          - ``prices_today``   : list of dicts with 'startsAt' and 'total'
-          - ``prices_tomorrow``: same format for the next day
-
-        Falls back to Nordpool if no Tibber sensor is found.
-        Falls back to a flat 0.25 €/kWh if neither is available.
+        Detects the sensor by looking for the 'prices_today' attribute with
+        ENTSO-E attribution.  Returns None if not found / no data.
         """
         now = dt_now()
-        now_hour = now.hour
 
-        # --- Try Tibber ---
-        tibber_entities = [
-            eid for eid in self.hass.states.async_entity_ids("sensor")
-            if "tibber" in eid and "price" in eid
-        ]
-        for eid in tibber_entities:
+        for eid in self.hass.states.async_entity_ids("sensor"):
             state = self.hass.states.get(eid)
             if state is None:
                 continue
             attrs = state.attributes
-            today = attrs.get("prices_today") or []
-            tomorrow = attrs.get("prices_tomorrow") or []
-            all_prices: list[dict] = list(today) + list(tomorrow)
+            # Detect ENTSO-E sensor by attribution or entity_id pattern
+            attribution = attrs.get("attribution", "")
+            if "ENTSO" not in attribution and "entsoe" not in eid.lower():
+                continue
+            today: list[dict] = attrs.get("prices_today") or []
+            tomorrow: list[dict] = attrs.get("prices_tomorrow") or []
+            if not today:
+                continue
+
+            result: list[tuple[int, int, float]] = []
+            for entry in today + tomorrow:
+                try:
+                    t = datetime.fromisoformat(str(entry["time"]))
+                    if t < now - timedelta(minutes=15):
+                        continue
+                    result.append((t.hour, t.minute, float(entry["price"])))
+                except (KeyError, ValueError, TypeError):
+                    continue
+
+            if result:
+                _LOGGER.debug(
+                    "ENTSO-E prices from %s: %d quarter-slots (%.3f–%.3f €/kWh)",
+                    eid, len(result),
+                    min(p for _, _, p in result),
+                    max(p for _, _, p in result),
+                )
+                return result[:96]  # max 24 h
+
+        return None
+
+    def _get_tibber_prices(self) -> list[tuple[int, int, float]] | None:
+        """Read hourly Tibber prices, expanded to 15-min resolution."""
+        now_hour = dt_now().hour
+        for eid in self.hass.states.async_entity_ids("sensor"):
+            if "tibber" not in eid or "price" not in eid:
+                continue
+            state = self.hass.states.get(eid)
+            if state is None:
+                continue
+            today: list = state.attributes.get("prices_today") or []
+            tomorrow: list = state.attributes.get("prices_tomorrow") or []
+            all_prices = today + tomorrow
             if not all_prices:
                 continue
-            result: list[tuple[int, float]] = []
+            hourly: list[tuple[int, float]] = []
             for i in range(24):
                 idx = now_hour + i
                 if idx >= len(all_prices):
                     break
                 entry = all_prices[idx]
                 price = float(entry.get("total") or entry.get("price") or 0.25)
-                hour = (now_hour + i) % 24
-                result.append((hour, price))
-            if result:
-                _LOGGER.debug("Tibber prices loaded from %s (%d hours)", eid, len(result))
-                return result
+                hourly.append(((now_hour + i) % 24, price))
+            if hourly:
+                _LOGGER.debug("Tibber prices from %s: %d hours", eid, len(hourly))
+                return _expand_hourly_to_quarters(hourly)
+        return None
 
-        # --- Try Nordpool ---
-        nordpool_entities = [
-            eid for eid in self.hass.states.async_entity_ids("sensor")
-            if "nordpool" in eid
-        ]
-        for eid in nordpool_entities:
+    def _get_nordpool_prices(self) -> list[tuple[int, int, float]] | None:
+        """Read hourly Nordpool prices, expanded to 15-min resolution."""
+        now_hour = dt_now().hour
+        for eid in self.hass.states.async_entity_ids("sensor"):
+            if "nordpool" not in eid:
+                continue
             state = self.hass.states.get(eid)
             if state is None:
                 continue
-            attrs = state.attributes
-            raw_today = attrs.get("raw_today") or []
-            raw_tomorrow = attrs.get("raw_tomorrow") or []
-            all_raw = list(raw_today) + list(raw_tomorrow)
+            raw_today = state.attributes.get("raw_today") or []
+            raw_tomorrow = state.attributes.get("raw_tomorrow") or []
+            all_raw = raw_today + raw_tomorrow
             if not all_raw:
                 continue
-            result = []
+            hourly: list[tuple[int, float]] = []
             for i in range(24):
                 idx = now_hour + i
                 if idx >= len(all_raw):
                     break
                 entry = all_raw[idx]
                 price = float(entry.get("value") or 0.25) if isinstance(entry, dict) else float(entry)
-                hour = (now_hour + i) % 24
-                result.append((hour, price))
-            if result:
-                _LOGGER.debug("Nordpool prices loaded from %s (%d hours)", eid, len(result))
-                return result
+                hourly.append(((now_hour + i) % 24, price))
+            if hourly:
+                _LOGGER.debug("Nordpool prices from %s: %d hours", eid, len(hourly))
+                return _expand_hourly_to_quarters(hourly)
+        return None
 
-        _LOGGER.warning("No Tibber/Nordpool price data found — using flat 0.25 €/kWh")
-        return [((now_hour + i) % 24, 0.25) for i in range(24)]
+    def _get_prices(self) -> list[tuple[int, int, float]]:
+        """Return prices as (hour, minute, eur_kwh) for next ~24 h.
+
+        Priority: ENTSO-E → Tibber → Nordpool → flat 0.25 €/kWh fallback.
+        """
+        prices = self._get_entsoe_prices()
+        if prices:
+            return prices
+        prices = self._get_tibber_prices()
+        if prices:
+            return prices
+        prices = self._get_nordpool_prices()
+        if prices:
+            return prices
+
+        _LOGGER.warning("No price data found — using flat 0.25 €/kWh fallback")
+        now = dt_now()
+        result: list[tuple[int, int, float]] = []
+        h, m = now.hour, (now.minute // 15) * 15
+        for _ in range(96):
+            result.append((h, m, 0.25))
+            h, m = _next_quarter(h, m)
+        return result
 
     # ------------------------------------------------------------------
     # Solar forecast
     # ------------------------------------------------------------------
 
     def _get_solar_forecast(self) -> dict[int, float]:
-        """Return {hour: expected_kwh} for the next 24 h from forecast.solar.
-
-        forecast.solar stores hourly production in the ``wh_period`` attribute
-        as {ISO-datetime-string: watt_hours}.
-        """
-        forecast: dict[int, float] = {h: 0.0 for h in range(24)}
-
-        forecast_entities = [
-            eid for eid in self.hass.states.async_entity_ids("sensor")
-            if "energy_production" in eid or "forecast_solar" in eid
-        ]
-        for eid in forecast_entities:
+        """Return {hour: expected_kwh} from forecast.solar."""
+        forecast: dict[int, float] = {}
+        for eid in self.hass.states.async_entity_ids("sensor"):
+            if "energy_production" not in eid and "forecast_solar" not in eid:
+                continue
             state = self.hass.states.get(eid)
             if state is None:
                 continue
-            wh_period = state.attributes.get("wh_period") or {}
+            wh_period = (
+                state.attributes.get("wh_period")
+                or state.attributes.get("watts_hours_period")
+                or {}
+            )
             if not wh_period:
-                wh_period = state.attributes.get("watts_hours_period") or {}
-            if wh_period:
-                for dt_str, wh in wh_period.items():
-                    try:
-                        dt = datetime.fromisoformat(str(dt_str))
-                        forecast[dt.hour] = forecast.get(dt.hour, 0.0) + float(wh) / 1000.0
-                    except (ValueError, TypeError):
-                        pass
-                _LOGGER.debug("Solar forecast loaded from %s", eid)
+                continue
+            for dt_str, wh in wh_period.items():
+                try:
+                    dt = datetime.fromisoformat(str(dt_str))
+                    forecast[dt.hour] = forecast.get(dt.hour, 0.0) + float(wh) / 1000.0
+                except (ValueError, TypeError):
+                    pass
+            if forecast:
+                _LOGGER.debug("Solar forecast from %s", eid)
                 break
-
         return forecast
 
     # ------------------------------------------------------------------
@@ -250,22 +299,14 @@ class BatteryOptimizer:
     # ------------------------------------------------------------------
 
     async def _get_hourly_consumption(self) -> list[float]:
-        """Return [h0..h23] average kWh consumed per hour (last 30 days).
-
-        Uses the HA recorder statistics API.  Falls back to 0.5 kWh/h
-        if no data is available.
-        """
+        """Return [h0..h23] average kWh/h from last 30 days (MariaDB)."""
         default = [0.5] * 24
-
         try:
             from homeassistant.components.recorder import get_instance
-            from homeassistant.components.recorder.statistics import (
-                statistics_during_period,
-            )
+            from homeassistant.components.recorder.statistics import statistics_during_period
 
             end_time = dt_now()
             start_time = end_time - timedelta(days=30)
-
             candidate_ids = {
                 "sensor.sunpura_s2400_home_power",
                 "sensor.sunpura_s2400_load_power",
@@ -273,45 +314,27 @@ class BatteryOptimizer:
             recorder = get_instance(self.hass)
             stats = await recorder.async_add_executor_job(
                 statistics_during_period,
-                self.hass,
-                start_time,
-                end_time,
-                candidate_ids,
-                "hour",
-                None,
-                {"mean"},
+                self.hass, start_time, end_time,
+                candidate_ids, "hour", None, {"mean"},
             )
-
             data_points: list[Any] = []
             for eid in candidate_ids:
                 if stats.get(eid):
                     data_points = stats[eid]
-                    _LOGGER.debug(
-                        "Consumption history loaded from %s (%d points)", eid, len(data_points)
-                    )
+                    _LOGGER.debug("Consumption history: %d points from %s", len(data_points), eid)
                     break
-
             if not data_points:
-                _LOGGER.warning(
-                    "No consumption history found for %s — using defaults", candidate_ids
-                )
+                _LOGGER.debug("No consumption history — using 0.5 kWh/h default")
                 return default
-
-            hourly_sums = [0.0] * 24
-            hourly_counts = [0] * 24
-            for point in data_points:
-                h = point["start"].hour
-                mean_w = point.get("mean") or 0.0
-                hourly_sums[h] += float(mean_w) / 1000.0  # W → kW (= kWh/h)
-                hourly_counts[h] += 1
-
-            return [
-                (hourly_sums[h] / hourly_counts[h]) if hourly_counts[h] > 0 else 0.5
-                for h in range(24)
-            ]
-
+            sums = [0.0] * 24
+            counts = [0] * 24
+            for pt in data_points:
+                h = pt["start"].hour
+                sums[h] += float(pt.get("mean") or 0.0) / 1000.0
+                counts[h] += 1
+            return [(sums[h] / counts[h]) if counts[h] else 0.5 for h in range(24)]
         except Exception as exc:
-            _LOGGER.warning("Could not fetch consumption history: %s", exc)
+            _LOGGER.warning("Could not load consumption history: %s", exc)
             return default
 
     # ------------------------------------------------------------------
@@ -319,27 +342,16 @@ class BatteryOptimizer:
     # ------------------------------------------------------------------
 
     async def optimize(self) -> list[dict]:
-        """Run optimisation and return a list of up to 16 slot dicts.
+        """Return up to 16 slot dicts for hub.push_schedule().
 
-        Each slot dict is suitable for hub.push_schedule() and contains:
-            enabled (bool), start (HH:MM), end (HH:MM),
-            power_w (int Watts: negative=charge, positive=discharge),
-            max_soc (int %), min_soc (int %).
-
-        Returns an empty list when scheduling is disabled.
+        Each slot: {enabled, start (HH:MM), end (HH:MM), power_w, max_soc, min_soc}
+        Returns [] when scheduling is disabled.
         """
-        # --- User settings ---
-        optimizer_mode = self._state_str(
-            "input_select.battery_optimizer_mode", "Gebalanceerd"
-        )
-        schedule_active = self._state_str(
-            "input_boolean.battery_schedule_active", "on"
-        )
+        mode = self._state_str("input_select.battery_optimizer_mode", "Gebalanceerd")
+        active = self._state_str("input_boolean.battery_schedule_active", "on")
 
-        if schedule_active != "on" or optimizer_mode == "Uit":
-            _LOGGER.info(
-                "Battery optimizer disabled (mode=%s, active=%s)", optimizer_mode, schedule_active
-            )
+        if active != "on" or mode == "Uit":
+            _LOGGER.info("Optimizer disabled (mode=%s, active=%s)", mode, active)
             return []
 
         reserve_soc = self._state_float("input_number.battery_reserve_soc", 15.0)
@@ -347,150 +359,143 @@ class BatteryOptimizer:
         high_price = self._state_float("input_number.battery_high_price_threshold", 0.25)
         low_price = self._state_float("input_number.battery_low_price_threshold", 0.08)
 
-        # Find the battery SOC entity dynamically (entity ID may have _2 suffix)
+        # Battery SOC — find entity dynamically (may have _2 suffix)
         soc_entity = next(
-            (
-                eid for eid in self.hass.states.async_entity_ids("sensor")
-                if "sunpura" in eid and "battery_soc" in eid
-            ),
-            "sensor.sunpura_s2400_battery_soc",
+            (eid for eid in self.hass.states.async_entity_ids("sensor")
+             if "sunpura" in eid and "battery_soc" in eid),
+            None,
         )
-        current_soc = self._state_float(soc_entity, 50.0)
-        _LOGGER.debug("Battery SOC: %.0f%% (entity=%s)", current_soc, soc_entity)
+        current_soc = self._state_float(soc_entity, 50.0) if soc_entity else 50.0
 
-        # --- Power limits (from hub API settings) ---
+        # Cupra EV
+        ev_charging = False
+        cupra_eid = next(
+            (eid for eid in self.hass.states.async_entity_ids("sensor")
+             if "cupra" in eid and "charging_power" in eid),
+            None,
+        )
+        if cupra_eid:
+            ev_charging = self._state_float(cupra_eid, 0.0) > 0.0
+
+        effective_reserve = reserve_soc + (ev_reserve_soc if ev_charging else 0.0)
         max_charge_w = self._max_charge_w()
         max_discharge_w = self._max_discharge_w()
 
-        # --- Cupra EV ---
-        ev_charging = False
-        cupra_power_entities = [
-            eid for eid in self.hass.states.async_entity_ids("sensor")
-            if "cupra" in eid and "charging_power" in eid
-        ]
-        if cupra_power_entities:
-            ev_power = self._state_float(cupra_power_entities[0], 0.0)
-            ev_charging = ev_power > 0.0
-            _LOGGER.debug(
-                "Cupra charging_power=%.0f W (entity=%s)", ev_power, cupra_power_entities[0]
-            )
-
-        effective_reserve = reserve_soc + (ev_reserve_soc if ev_charging else 0.0)
-
-        # --- Data ---
-        prices = self._get_tibber_prices()           # [(hour, eur/kWh), ...]
-        solar = self._get_solar_forecast()            # {hour: kWh}
-        consumption = await self._get_hourly_consumption()   # [kWh] per hour of day
+        # Price + forecast data
+        prices = self._get_prices()  # [(h, m, eur/kWh), ...]
+        solar = self._get_solar_forecast()  # {hour: kWh}
+        consumption = await self._get_hourly_consumption()  # [kWh/h] × 24
 
         _LOGGER.info(
-            "Optimizer: mode=%s, reserve=%.0f%%, ev=%s, high=%.2f, low=%.2f, "
-            "max_charge=%dW, max_discharge=%dW",
-            optimizer_mode, effective_reserve, ev_charging,
-            high_price, low_price, max_charge_w, max_discharge_w,
+            "Optimizer: mode=%s, reserve=%.0f%%, ev=%s, "
+            "thresholds=%.3f/%.3f, SOC=%.0f%%, "
+            "charge=%dW, discharge=%dW, price_slots=%d",
+            mode, effective_reserve, ev_charging,
+            low_price, high_price, current_soc,
+            max_charge_w, max_discharge_w, len(prices),
         )
 
-        # --- Classify each hour ---
-        charge_hours: list[int] = []
-        discharge_hours: list[int] = []
+        # Classify each 15-min quarter
+        charge_quarters: list[tuple[int, int]] = []
+        discharge_quarters: list[tuple[int, int]] = []
 
-        for hour, price in prices:
-            net_solar = max(0.0, solar.get(hour, 0.0) - consumption[hour % 24])
+        for h, m, price in prices:
+            net_solar = max(0.0, solar.get(h, 0.0) / 4 - consumption[h] / 4)
 
-            if optimizer_mode == "Prijs-arbitrage":
-                if price <= low_price and net_solar < 0.1:
-                    charge_hours.append(hour)
+            if mode == "Prijs-arbitrage":
+                if price <= low_price and net_solar < 0.025:
+                    charge_quarters.append((h, m))
                 elif price >= high_price:
-                    discharge_hours.append(hour)
+                    discharge_quarters.append((h, m))
 
-            elif optimizer_mode == "Zelfverbruik":
-                # Discharge only at very high prices and sufficient SOC
+            elif mode == "Zelfverbruik":
                 if price >= high_price and current_soc > effective_reserve + 10:
-                    discharge_hours.append(hour)
+                    discharge_quarters.append((h, m))
 
-            else:  # Gebalanceerd (default)
-                if price <= low_price and net_solar < 0.1:
-                    charge_hours.append(hour)
-                elif price >= high_price and net_solar < 0.5:
-                    discharge_hours.append(hour)
+            else:  # Gebalanceerd
+                if price <= low_price and net_solar < 0.025:
+                    charge_quarters.append((h, m))
+                elif price >= high_price and net_solar < 0.125:
+                    discharge_quarters.append((h, m))
 
         # Deduplicate and sort
-        charge_hours = sorted(set(charge_hours))
-        discharge_hours = sorted(set(h for h in set(discharge_hours) if h not in charge_hours))
+        charge_quarters = sorted(set(charge_quarters))
+        discharge_set = set(discharge_quarters) - set(charge_quarters)
+        discharge_quarters = sorted(discharge_set)
 
-        # --- Build slot list (max 16 total) ---
+        # Build slots
         slots: list[dict] = []
 
-        for group in _group_consecutive_hours(charge_hours):
+        for group in _group_consecutive_quarters(charge_quarters):
             if len(slots) >= 14:
                 break
-            end_hour = (group[-1] + 1) % 24
+            end_h, end_m = _next_quarter(*group[-1])
             slots.append({
                 "enabled": True,
-                "start": f"{group[0]:02d}:00",
-                "end": f"{end_hour:02d}:00",
-                "power_w": -max_charge_w,   # negative = charge from grid
+                "start": _quarter_to_str(*group[0]),
+                "end": _quarter_to_str(end_h, end_m),
+                "power_w": -max_charge_w,
                 "max_soc": 95,
                 "min_soc": int(effective_reserve),
             })
 
-        for group in _group_consecutive_hours(discharge_hours):
+        for group in _group_consecutive_quarters(discharge_quarters):
             if len(slots) >= 14:
                 break
-            end_hour = (group[-1] + 1) % 24
+            end_h, end_m = _next_quarter(*group[-1])
             slots.append({
                 "enabled": True,
-                "start": f"{group[0]:02d}:00",
-                "end": f"{end_hour:02d}:00",
-                "power_w": max_discharge_w,  # positive = discharge/feed
+                "start": _quarter_to_str(*group[0]),
+                "end": _quarter_to_str(end_h, end_m),
+                "power_w": max_discharge_w,
                 "max_soc": 100,
                 "min_soc": int(effective_reserve),
             })
 
-        # --- EV-specific overnight charge (up to 2 extra slots) ---
-        if ev_charging and optimizer_mode != "Uit" and len(slots) < 15:
-            night_prices = sorted(
-                [(h, p) for h, p in prices if h >= 22 or h < 6],
-                key=lambda x: x[1],
+        # EV overnight cheap charge
+        if ev_charging and len(slots) < 15:
+            night_quarters = sorted(
+                [(h, m, p) for h, m, p in prices if h >= 22 or h < 6],
+                key=lambda x: x[2],
             )
-            ev_hours = sorted({h for h, _ in night_prices[:3]})
-            for group in _group_consecutive_hours(ev_hours):
+            ev_qs = sorted({(h, m) for h, m, _ in night_quarters[:12]})
+            for group in _group_consecutive_quarters(ev_qs):
                 if len(slots) >= 15:
                     break
-                covered = any(
-                    s["power_w"] < 0 and _hour_in_slot(group[0], s)
-                    for s in slots
-                )
-                if not covered:
-                    end_hour = (group[-1] + 1) % 24
-                    slots.append({
-                        "enabled": True,
-                        "start": f"{group[0]:02d}:00",
-                        "end": f"{end_hour:02d}:00",
-                        "power_w": -(max_charge_w // 2),  # half power for EV top-up
-                        "max_soc": int(min(95, reserve_soc + ev_reserve_soc + 15)),
-                        "min_soc": int(reserve_soc),
-                    })
+                if any(s["power_w"] < 0 and _quarter_in_slot(group[0], s) for s in slots):
+                    continue
+                end_h, end_m = _next_quarter(*group[-1])
+                slots.append({
+                    "enabled": True,
+                    "start": _quarter_to_str(*group[0]),
+                    "end": _quarter_to_str(end_h, end_m),
+                    "power_w": -(max_charge_w // 2),
+                    "max_soc": int(min(95, reserve_soc + ev_reserve_soc + 15)),
+                    "min_soc": int(reserve_soc),
+                })
 
-        _LOGGER.info("Optimizer produced %d slot(s)", len(slots))
-        for i, s in enumerate(slots):
-            direction = "charge" if s["power_w"] < 0 else "discharge"
-            _LOGGER.debug(
-                "  Slot %d: %s-%s %s %dW soc=%d-%d%%",
-                i + 1, s["start"], s["end"], direction,
+        _LOGGER.info("Optimizer produced %d slot(s):", len(slots))
+        for i, s in enumerate(slots, 1):
+            _LOGGER.info(
+                "  [%d] %s-%s %s %dW  SOC %d-%d%%",
+                i, s["start"], s["end"],
+                "charge" if s["power_w"] < 0 else "discharge",
                 abs(s["power_w"]), s["min_soc"], s["max_soc"],
             )
 
         return slots
 
 
-def _hour_in_slot(hour: int, slot: dict) -> bool:
-    """Return True if the given hour falls within the slot's time range."""
+def _quarter_in_slot(quarter: tuple[int, int], slot: dict) -> bool:
+    """True if the quarter (h, m) falls within slot's start-end range."""
     try:
-        start_h = int(slot["start"].split(":")[0])
-        end_h = int(slot["end"].split(":")[0])
-        if start_h <= end_h:
-            return start_h <= hour < end_h
-        # Wrap-around (e.g. 23:00 → 01:00)
-        return hour >= start_h or hour < end_h
+        sh, sm = int(slot["start"][:2]), int(slot["start"][3:])
+        eh, em = int(slot["end"][:2]), int(slot["end"][3:])
+        qmins = quarter[0] * 60 + quarter[1]
+        smins = sh * 60 + sm
+        emins = eh * 60 + em
+        if smins <= emins:
+            return smins <= qmins < emins
+        return qmins >= smins or qmins < emins
     except (KeyError, ValueError, IndexError):
         return False

@@ -29,6 +29,15 @@ _LOGGER = logging.getLogger(__name__)
 # Field 11 (minSOC): lower SOC limit for this slot  (0-100 %)
 _EMPTY_SLOT = "0,00:00,00:00,0,0,6,0,0,0,100,10"
 
+# Server-side read-only fields that must NOT be included in the SET payload.
+# Including them causes the API to silently reject or misprocess the request.
+_READONLY_FIELDS: frozenset[str] = frozenset({
+    "id", "sn", "createTime", "updateTime",
+    "currentPower", "currentWorkMode",
+    "modeStr", "aiActiveTime", "priceType",
+    "smartModeLimitFlag",
+})
+
 
 def _slot_to_str(slot: dict) -> str:
     """Convert a slot dict to the Sunpura controlTime CSV string.
@@ -256,32 +265,54 @@ class SunpuraHub:
             slots = list(slots.values())
         slots = list(slots) if slots else []
 
-        # Start from the cached GET response so we preserve unknown fields
-        cached = self.data.get("ai_system_times_with_energy_mode") or {}
-        obj = dict((cached.get("obj") or {}))
-        obj["energyMode"] = 2  # Custom mode
-        obj["datalogSn"] = self.main_control_device_id
+        # Build a clean payload from the cached GET response.
+        # Strategy: copy all writable, non-null fields from the cached obj, then
+        # overlay our schedule changes.  Explicitly skip:
+        #   - _READONLY_FIELDS (server-side metadata — cause silent API rejection)
+        #   - null/None values (including controlTime17-96 which are always null)
+        #   - any controlTime key (we set all 16 ourselves below)
+        cached_obj = (
+            self.data.get("ai_system_times_with_energy_mode") or {}
+        ).get("obj") or {}
+
+        payload: dict = {}
+        for k, v in cached_obj.items():
+            if k in _READONLY_FIELDS:
+                continue
+            if v is None:
+                continue
+            if k.startswith("controlTime"):
+                continue  # overwritten below
+            payload[k] = v
+
+        # Schedule fields
+        payload["energyMode"] = 2  # Custom mode
+        payload["datalogSn"] = self.main_control_device_id
 
         # Write provided slots (max 16)
         active = slots[:16]
         for i, slot in enumerate(active, start=1):
-            obj[f"controlTime{i}"] = _slot_to_str(slot)
-            _LOGGER.debug("push_schedule slot %d: %s", i, obj[f"controlTime{i}"])
+            s = _slot_to_str(slot)
+            payload[f"controlTime{i}"] = s
+            _LOGGER.debug("push_schedule slot %d: %s", i, s)
 
-        # Clear unused slots
+        # Always fill all 16 slots — unused ones get the empty string
         for i in range(len(active) + 1, 17):
-            obj[f"controlTime{i}"] = _EMPTY_SLOT
+            payload[f"controlTime{i}"] = _EMPTY_SLOT
 
         _LOGGER.info(
-            "push_schedule: energyMode=2, %d active slots, dry_run=%s",
-            min(len(slots), 16),
-            dry_run,
+            "push_schedule: %d active slot(s), payload fields=%s",
+            len(active),
+            sorted(payload.keys()),
         )
 
         if dry_run:
-            return {"result": 0, "dry_run": True, "payload": obj}
+            _LOGGER.info("push_schedule DRY RUN payload: %s", payload)
+            return {"result": 0, "dry_run": True, "payload": payload}
 
-        return await self.set_ai_system_times_with_energy_mode(obj)
+        resp = await self.set_ai_system_times_with_energy_mode(payload)
+        _LOGGER.info("push_schedule API response: %s", resp)
+        return resp
 
     async def set_ai_link_mode(self, datalog_sn, flag) -> dict | None:
         if not datalog_sn or flag is None:

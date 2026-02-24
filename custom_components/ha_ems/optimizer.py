@@ -347,7 +347,16 @@ class BatteryOptimizer:
         high_price = self._state_float("input_number.battery_high_price_threshold", 0.25)
         low_price = self._state_float("input_number.battery_low_price_threshold", 0.08)
 
-        current_soc = self._state_float("sensor.sunpura_s2400_battery_soc", 50.0)
+        # Find the battery SOC entity dynamically (entity ID may have _2 suffix)
+        soc_entity = next(
+            (
+                eid for eid in self.hass.states.async_entity_ids("sensor")
+                if "sunpura" in eid and "battery_soc" in eid
+            ),
+            "sensor.sunpura_s2400_battery_soc",
+        )
+        current_soc = self._state_float(soc_entity, 50.0)
+        _LOGGER.debug("Battery SOC: %.0f%% (entity=%s)", current_soc, soc_entity)
 
         # --- Power limits (from hub API settings) ---
         max_charge_w = self._max_charge_w()

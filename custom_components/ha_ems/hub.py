@@ -250,19 +250,26 @@ class SunpuraHub:
             _LOGGER.error("push_schedule: main_control_device_id not set")
             return {"result": -1, "msg": "No main control device"}
 
+        # HA service data may arrive as a dict (keyed by index) instead of a
+        # list when the YAML is parsed by the service call handler.
+        if isinstance(slots, dict):
+            slots = list(slots.values())
+        slots = list(slots) if slots else []
+
         # Start from the cached GET response so we preserve unknown fields
         cached = self.data.get("ai_system_times_with_energy_mode") or {}
         obj = dict((cached.get("obj") or {}))
         obj["energyMode"] = 2  # Custom mode
         obj["datalogSn"] = self.main_control_device_id
 
-        # Write provided slots
-        for i, slot in enumerate(slots[:16], start=1):
+        # Write provided slots (max 16)
+        active = slots[:16]
+        for i, slot in enumerate(active, start=1):
             obj[f"controlTime{i}"] = _slot_to_str(slot)
             _LOGGER.debug("push_schedule slot %d: %s", i, obj[f"controlTime{i}"])
 
         # Clear unused slots
-        for i in range(len(slots) + 1, 17):
+        for i in range(len(active) + 1, 17):
             obj[f"controlTime{i}"] = _EMPTY_SLOT
 
         _LOGGER.info(

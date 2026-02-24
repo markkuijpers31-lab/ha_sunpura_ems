@@ -625,3 +625,55 @@ service_get_ai_use_strategy:
   name: Get AI use strategy
   description: Retrieve AI energy usage strategy settings.
   fields: {}
+
+push_schedule:
+  name: Push schedule
+  description: >
+    Write up to 16 charge/discharge time slots to the Sunpura S2400 in
+    Custom mode (energyMode=2).  Unused slots are automatically zeroed.
+
+    NOTE: The controlTime field encoding (fields 4-9) was inferred from
+    similar inverters and must be verified via Fase 0 (set a slot in the
+    Sunpura app, then read sensor.sunpura_s2400_api_discovery_slow_data).
+  fields:
+    slots:
+      name: Slots
+      description: >
+        List of slot objects. Each object may contain:
+        enabled (bool), start (HH:MM), end (HH:MM),
+        work_mode (0=idle/1=charge/2=discharge),
+        power_pct (0-100), max_soc (0-100), min_soc (0-100).
+      required: true
+      example:
+        - enabled: true
+          start: "02:00"
+          end: "06:00"
+          work_mode: 1
+          power_pct: 100
+          max_soc: 95
+          min_soc: 15
+      selector:
+        object:
+    dry_run:
+      name: Dry run
+      description: >
+        If true, log the payload but do NOT write to the inverter.
+        Use this to verify the generated schedule before committing.
+      default: false
+      selector:
+        boolean:
+
+optimize_and_push:
+  name: Optimize and push
+  description: >
+    Run the battery optimizer (reads Tibber/Nordpool prices, solar forecast,
+    historical consumption, Cupra EV state and input helpers) and push the
+    resulting schedule to the inverter.
+  fields:
+    dry_run:
+      name: Dry run
+      description: >
+        If true, run the optimizer and log the schedule but do NOT push it.
+      default: false
+      selector:
+        boolean:

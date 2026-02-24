@@ -400,6 +400,37 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, "service_get_ai_use_strategy", _service_get_ai_use_strategy)
 
     # ----------------------------------------------------------------
+    # Optimizer services
+    # ----------------------------------------------------------------
+
+    async def _service_push_schedule(call):
+        """Write a list of slot dicts to the battery in Custom mode."""
+        slots = call.data.get("slots", [])
+        dry_run = bool(call.data.get("dry_run", False))
+        result = await hub.push_schedule(slots, dry_run=dry_run)
+        _LOGGER.info("push_schedule result: %s", result)
+        if not dry_run:
+            await slow_coordinator.async_refresh()
+
+    hass.services.async_register(DOMAIN, "push_schedule", _service_push_schedule)
+
+    async def _service_optimize_and_push(call):
+        """Run the battery optimizer and push the resulting schedule."""
+        from .optimizer import BatteryOptimizer
+        dry_run = bool(call.data.get("dry_run", False))
+        optimizer = BatteryOptimizer(hass)
+        slots = await optimizer.optimize()
+        if slots:
+            result = await hub.push_schedule(slots, dry_run=dry_run)
+            _LOGGER.info("optimize_and_push result: %s (dry_run=%s)", result, dry_run)
+        else:
+            _LOGGER.info("optimize_and_push: optimizer returned no slots (scheduling disabled or mode=Uit)")
+        if slots and not dry_run:
+            await slow_coordinator.async_refresh()
+
+    hass.services.async_register(DOMAIN, "optimize_and_push", _service_optimize_and_push)
+
+    # ----------------------------------------------------------------
     # Zeroconf local device discovery (unchanged)
     # ----------------------------------------------------------------
     zeroconf_instance = await zeroconf.async_get_async_instance(hass)

@@ -279,6 +279,9 @@ async def async_setup_entry(
     entities.append(EmsRawDiscoverySensor(realtime_coordinator, hub))
     entities.append(EmsSlowDiscoverySensor(slow_coordinator, hub))
 
+    # Schedule sensor — shows the current controlTime slots as attributes
+    entities.append(EmsScheduleSensor(slow_coordinator, hub))
+
     # Individual real-time sensors
     for description in REALTIME_SENSOR_DESCRIPTIONS:
         entities.append(EmsRealtimeSensor(realtime_coordinator, hub, description))
@@ -446,3 +449,56 @@ class EmsSlowSensor(_EmsBaseSensor):
             return False
         period_data = self.coordinator.data.get(self.entity_description.period) or {}
         return self.entity_description.field_key in period_data
+
+
+class EmsScheduleSensor(_EmsBaseSensor):
+    """Sensor that surfaces the current controlTime schedule as attributes.
+
+    State: number of active slots (int).
+    Attributes: slot_1 … slot_16 (raw controlTime strings),
+                energy_mode (0=General / 1=Smart / 2=Custom).
+
+    Use Developer Tools → States to inspect the schedule returned by the API
+    and cross-reference with what you set via the Sunpura app (Fase 0).
+    """
+
+    def __init__(self, coordinator: EmsSlowCoordinator, hub) -> None:
+        super().__init__(coordinator)
+        self.hub = hub
+        self._attr_name = "Battery Schedule"
+        self._attr_unique_id = "ha_ems_schedule"
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._attr_icon = "mdi:calendar-clock"
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the number of active (enabled) slots."""
+        obj = self._schedule_obj()
+        if obj is None:
+            return None
+        active = 0
+        for i in range(1, 17):
+            slot_str = obj.get(f"controlTime{i}", "")
+            if slot_str and not slot_str.startswith("0,"):
+                active += 1
+        return active
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        obj = self._schedule_obj()
+        if obj is None:
+            return {}
+        attrs: dict[str, Any] = {
+            "energy_mode": obj.get("energyMode"),
+        }
+        for i in range(1, 17):
+            key = f"controlTime{i}"
+            if key in obj:
+                attrs[f"slot_{i}"] = obj[key]
+        return attrs
+
+    def _schedule_obj(self) -> dict | None:
+        if self.coordinator.data is None:
+            return None
+        ai = self.coordinator.data.get("ai_settings") or {}
+        return ai.get("obj") if isinstance(ai, dict) else None

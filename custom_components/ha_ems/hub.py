@@ -9,6 +9,41 @@ from .tcp_client import SunpuraDeviceClient
 
 _LOGGER = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# controlTime slot helpers
+# ---------------------------------------------------------------------------
+
+# Empty/disabled slot string (11 comma-separated fields).
+# Format (inferred from similar Growatt/GoodWe systems, confirm via Fase 0):
+#   enabled, startTime, endTime, workMode, power_pct, f5, f6, f7, f8, f9, maxSOC, minSOC
+# workMode: 0=idle, 1=charge from grid, 2=discharge to grid/home
+_EMPTY_SLOT = "0,00:00,00:00,0,0,0,0,0,0,100,10"
+
+
+def _slot_to_str(slot: dict) -> str:
+    """Convert a slot dict to the Sunpura controlTime CSV string.
+
+    Expected slot keys:
+        enabled   (bool, default True)
+        start     (str HH:MM, default "00:00")
+        end       (str HH:MM, default "00:00")
+        work_mode (int, 0=idle / 1=charge / 2=discharge, default 0)
+        power_pct (int 0-100, default 100)
+        max_soc   (int 0-100, default 100)
+        min_soc   (int 0-100, default 10)
+
+    NOTE: Fields 5-9 (f5-f9) are still unknown — they are set to 0 until
+    decoded via Fase 0 (read discovery sensor after setting a slot via the app).
+    """
+    enabled = 1 if slot.get("enabled", True) else 0
+    start = slot.get("start", "00:00")
+    end = slot.get("end", "00:00")
+    work_mode = int(slot.get("work_mode", 0))
+    power_pct = int(slot.get("power_pct", 100))
+    max_soc = int(slot.get("max_soc", 100))
+    min_soc = int(slot.get("min_soc", 10))
+    return f"{enabled},{start},{end},{work_mode},{power_pct},0,0,0,0,0,{max_soc},{min_soc}"
+
 
 class SunpuraHub:
     """Central hub: holds API client, plant/device state, local TCP connections."""
@@ -191,6 +226,47 @@ class SunpuraHub:
         # Do NOT overwrite hub.data here — the SET response contains no obj,
         # which would wipe out the cached GET data and break all reads.
         return resp or {}
+
+    async def push_schedule(self, slots: list[dict], dry_run: bool = False) -> dict:
+        """Write up to 16 controlTime slots in Custom mode (energyMode=2).
+
+        Args:
+            slots:   List of slot dicts (see _slot_to_str for keys).
+                     Unused slots (beyond len(slots)) are zeroed automatically.
+            dry_run: If True, log the payload but do NOT call the API.
+
+        Returns:
+            API response dict (or the payload dict when dry_run=True).
+        """
+        if not self.main_control_device_id:
+            _LOGGER.error("push_schedule: main_control_device_id not set")
+            return {"result": -1, "msg": "No main control device"}
+
+        # Start from the cached GET response so we preserve unknown fields
+        cached = self.data.get("ai_system_times_with_energy_mode") or {}
+        obj = dict((cached.get("obj") or {}))
+        obj["energyMode"] = 2  # Custom mode
+        obj["datalogSn"] = self.main_control_device_id
+
+        # Write provided slots
+        for i, slot in enumerate(slots[:16], start=1):
+            obj[f"controlTime{i}"] = _slot_to_str(slot)
+            _LOGGER.debug("push_schedule slot %d: %s", i, obj[f"controlTime{i}"])
+
+        # Clear unused slots
+        for i in range(len(slots) + 1, 17):
+            obj[f"controlTime{i}"] = _EMPTY_SLOT
+
+        _LOGGER.info(
+            "push_schedule: energyMode=2, %d active slots, dry_run=%s",
+            min(len(slots), 16),
+            dry_run,
+        )
+
+        if dry_run:
+            return {"result": 0, "dry_run": True, "payload": obj}
+
+        return await self.set_ai_system_times_with_energy_mode(obj)
 
     async def set_ai_link_mode(self, datalog_sn, flag) -> dict | None:
         if not datalog_sn or flag is None:

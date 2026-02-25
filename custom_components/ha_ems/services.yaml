@@ -663,17 +663,3 @@ push_schedule:
       selector:
         boolean:
 
-optimize_and_push:
-  name: Optimize and push
-  description: >
-    Run the battery optimizer (reads Tibber/Nordpool prices, solar forecast,
-    historical consumption, Cupra EV state and input helpers) and push the
-    resulting schedule to the inverter.
-  fields:
-    dry_run:
-      name: Dry run
-      description: >
-        If true, run the optimizer and log the schedule but do NOT push it.
-      default: false
-      selector:
-        boolean:

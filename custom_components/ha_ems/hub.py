@@ -30,9 +30,10 @@ _LOGGER = logging.getLogger(__name__)
 _EMPTY_SLOT = "0,00:00,00:00,0,0,0,0,0,0,100,10"
 
 # Server-side read-only fields that must NOT be included in the SET payload.
-# Including them causes the API to silently reject or misprocess the request.
+# Note: "id" is intentionally NOT excluded — the SET endpoint requires it to
+# identify which record to update (omitting it causes result 20001).
 _READONLY_FIELDS: frozenset[str] = frozenset({
-    "id", "sn", "createTime", "updateTime",
+    "sn", "createTime", "updateTime",
     "currentPower", "currentWorkMode",
     "modeStr", "aiActiveTime", "priceType",
     "smartModeLimitFlag",
@@ -276,27 +277,30 @@ class SunpuraHub:
             slots = list(slots.values())
         slots = list(slots) if slots else []
 
-        # Build a clean payload from the cached GET response.
-        # Strategy: copy all writable, non-null fields from the cached obj, then
-        # overlay our schedule changes.  Explicitly skip:
-        #   - _READONLY_FIELDS (server-side metadata — cause silent API rejection)
-        #   - null/None values (including controlTime17-96 which are always null)
-        #   - any controlTime key (we set all 16 ourselves below)
-        cached_obj = (
-            self.data.get("ai_system_times_with_energy_mode") or {}
-        ).get("obj") or {}
+        # Fetch the energyMode=2 record directly (bypassing hub cache) to get
+        # its `id` — the SET endpoint requires it.  We do NOT use the hub-level
+        # wrapper because that would overwrite the coordinator's energyMode=0
+        # cache (which contains the populated powerTimeSetVos we need below).
+        fresh2 = await self.apiClient.getAiSystemTimesWithEnergyMode(
+            self.main_control_device_id, 2
+        )
+        _LOGGER.debug("push_schedule mode=2 GET response obj: %s", (fresh2 or {}).get("obj"))
+        fresh2_obj = (fresh2 or {}).get("obj") or {}
 
+        # Round-trip the mode=2 record back to the server with only the controlTime
+        # fields changed.  We include ALL fields the GET returned (including readonly
+        # metadata like sn/createTime) because that is what the Sunpura app does.
+        # Only None values are stripped (those are controlTime17-96 and other optional
+        # null fields that would cause JSON serialisation / API issues).
         payload: dict = {}
-        for k, v in cached_obj.items():
-            if k in _READONLY_FIELDS:
-                continue
+        for k, v in fresh2_obj.items():
             if v is None:
                 continue
             if k.startswith("controlTime"):
                 continue  # overwritten below
             payload[k] = v
 
-        # Schedule fields
+        # Override with Custom mode and our schedule
         payload["energyMode"] = 2  # Custom mode
         payload["datalogSn"] = self.main_control_device_id
 
@@ -307,9 +311,11 @@ class SunpuraHub:
             payload[f"controlTime{i}"] = s
             _LOGGER.debug("push_schedule slot %d: %s", i, s)
 
-        # Always fill all 16 slots — unused ones get the empty string
+        # For remaining slots, carry over the existing values from the GET response
+        # (they remain as disabled slots with the API's default format).
         for i in range(len(active) + 1, 17):
-            payload[f"controlTime{i}"] = _EMPTY_SLOT
+            existing = fresh2_obj.get(f"controlTime{i}")
+            payload[f"controlTime{i}"] = existing if existing is not None else _EMPTY_SLOT
 
         _LOGGER.info(
             "push_schedule: %d active slot(s), payload fields=%s",
@@ -321,7 +327,9 @@ class SunpuraHub:
             _LOGGER.info("push_schedule DRY RUN payload: %s", payload)
             return {"result": 0, "dry_run": True, "payload": payload}
 
-        resp = await self.set_ai_system_times_with_energy_mode(payload)
+        # Call API directly (not through hub wrapper, which re-filters fields)
+        resp = await self.apiClient.setAiSystemTimesWithEnergyMode(payload)
+        resp = resp or {}
         _LOGGER.info("push_schedule API response: %s", resp)
         return resp
 

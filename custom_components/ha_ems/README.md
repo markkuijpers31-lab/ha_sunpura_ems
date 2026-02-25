@@ -2,7 +2,7 @@
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![HA Version](https://img.shields.io/badge/Home%20Assistant-2023.9%2B-blue.svg)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/version-2.1.0-green.svg)](https://github.com/markkuijpers31-lab/ha_sunpura_ems/releases)
+[![Version](https://img.shields.io/badge/version-2.2.0-green.svg)](https://github.com/markkuijpers31-lab/ha_sunpura_ems/releases)
 
 Custom Home Assistant integration for the **Sunpura S2400** home battery system. Connects to the Sunpura cloud API to provide real-time energy monitoring and full control over battery behaviour directly from Home Assistant.
 
@@ -21,6 +21,7 @@ Custom Home Assistant integration for the **Sunpura S2400** home battery system.
 - **Battery charge/discharge settings** — max charge power, max feed-in power, discharge power, min/max SOC
 - **AI switches** — Smart Link mode, Basic Discharge, Anti-Reflux (zero feed-in), CT Clamp
 - **Smart devices** — switches for connected smart sockets and EV chargers
+- **Schedule sensor** — shows the active controlTime slots currently programmed on the device
 - **Local device discovery** — automatic detection of local devices via Zeroconf/mDNS
 - **Multi-language** — full support for 🇳🇱 Dutch, 🇬🇧 English, 🇩🇪 German, 🇫🇷 French
 
@@ -157,14 +158,54 @@ Monthly, yearly and all-time breakdowns for:
 
 ## Diagnostic Sensors
 
-Two hidden diagnostic sensors are included (visible in Developer Tools → States and in entity settings under *Diagnostic*):
+Three diagnostic sensors are included (visible in Developer Tools → States and in entity settings under *Diagnostic*):
 
 | Sensor | Description |
 |--------|-------------|
 | API Discovery (realtime) | All raw fields from the homeCountData endpoint as attributes |
 | API Discovery (slow data) | All raw fields from energy/AI endpoints as attributes |
+| Battery Schedule | Number of active controlTime slots; attributes show all 16 slot strings and the current energy mode |
 
-These are useful for troubleshooting or identifying new field names returned by the API.
+These are useful for troubleshooting, building automations on top of the schedule, or identifying new field names returned by the API.
+
+---
+
+## `push_schedule` service
+
+The integration exposes a `ha_ems.push_schedule` service that lets automations write a full controlTime schedule to the battery in **Custom** mode (energyMode 2).
+
+```yaml
+service: ha_ems.push_schedule
+data:
+  slots:
+    - enabled: true
+      start: "00:00"
+      end: "06:00"
+      power_w: -2400   # negative = charge from grid
+      min_soc: 10
+      max_soc: 90
+    - enabled: true
+      start: "17:00"
+      end: "21:00"
+      power_w: 800     # positive = discharge / feed-in
+      min_soc: 20
+      max_soc: 100
+```
+
+Slot fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | bool | Whether the slot is active |
+| `start` | `HH:MM` | Start time |
+| `end` | `HH:MM` | End time |
+| `power_w` | int (W) | Negative = charge from grid, positive = discharge/feed-in |
+| `min_soc` | int (%) | Stop discharging below this SOC |
+| `max_soc` | int (%) | Stop charging above this SOC |
+
+Unused slot positions (beyond the number of provided slots, up to 16) are filled with empty/disabled slots automatically.
+
+Pass `dry_run: true` to log the payload without sending it to the API.
 
 ---
 
@@ -182,6 +223,9 @@ These are useful for troubleshooting or identifying new field names returned by 
 **Energy Mode shows "Unknown"**
 - Your device may report an energy mode not yet mapped. Check `ai.energyMode` in the **API Discovery (slow data)** sensor and open an issue.
 
+**Number or select entity snaps back after change**
+- This was a known bug (v2.1.0 and earlier) caused by read-only API fields being included in the write payload. Fixed in v2.2.0.
+
 ---
 
 ## Polling intervals
@@ -190,6 +234,19 @@ These are useful for troubleshooting or identifying new field names returned by 
 |-----------|----------|
 | Real-time energy flow | 30 seconds |
 | Statistics, AI settings, device list | 5 minutes |
+
+---
+
+## Changelog
+
+### v2.2.0
+- Fixed snap-back bug for number and select entities: read-only API fields are now stripped before writing, and the local cache is updated immediately on a successful write
+- Fixed empty slot format (field 6 was incorrectly set to `6` for disabled slots)
+- Energy Mode select now holds its optimistic state until the API confirms the change
+- Restored `Battery Schedule` diagnostic sensor (active slot count + slot attributes)
+
+### v2.1.0
+- Initial public release: 27 sensors, 4+ switches, 5 number controls, energy mode select, push_schedule service
 
 ---
 
